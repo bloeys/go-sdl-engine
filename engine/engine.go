@@ -15,6 +15,10 @@ import (
 
 var (
 	isInited = false
+
+	isSdlButtonLeftDown   = false
+	isSdlButtonMiddleDown = false
+	isSdlButtonRightDown  = false
 )
 
 type Window struct {
@@ -29,7 +33,9 @@ func (w *Window) handleInputs() {
 	input.EventLoopStart()
 	imIo := imgui.CurrentIO()
 
-	// @TODO: Would be nice to have imgui package process its own events via a callback instead of it being part of engine code
+	imguiCaptureMouse := imIo.WantCaptureMouse()
+	imguiCaptureKeyboard := imIo.WantCaptureKeyboard()
+
 	for event := sdl.PollEvent(); event != nil; event = sdl.PollEvent() {
 
 		//Fire callbacks
@@ -42,14 +48,18 @@ func (w *Window) handleInputs() {
 
 		case *sdl.MouseWheelEvent:
 
-			input.HandleMouseWheelEvent(e)
+			if !imguiCaptureMouse {
+				input.HandleMouseWheelEvent(e)
+			}
 
-			xDelta, yDelta := input.GetMouseWheelMotion()
-			imIo.AddMouseWheelDelta(float32(xDelta), float32(yDelta))
+			imIo.AddMouseWheelDelta(float32(e.X), float32(e.Y))
 
 		case *sdl.KeyboardEvent:
 
-			input.HandleKeyboardEvent(e)
+			if !imguiCaptureKeyboard {
+				input.HandleKeyboardEvent(e)
+			}
+
 			imIo.AddKeyEvent(nmageimgui.SdlScancodeToImGuiKey(e.Keysym.Scancode), e.Type == sdl.KEYDOWN)
 
 			// Send modifier key updates to imgui
@@ -73,12 +83,29 @@ func (w *Window) handleInputs() {
 			imIo.AddInputCharactersUTF8(e.GetText())
 
 		case *sdl.MouseButtonEvent:
-			input.HandleMouseBtnEvent(e)
+
+			if !imguiCaptureMouse {
+				input.HandleMouseBtnEvent(e)
+			}
+
+			isPressed := e.State == sdl.PRESSED
+
+			if e.Button == sdl.BUTTON_LEFT {
+				isSdlButtonLeftDown = isPressed
+			} else if e.Button == sdl.BUTTON_MIDDLE {
+				isSdlButtonMiddleDown = isPressed
+			} else if e.Button == sdl.BUTTON_RIGHT {
+				isSdlButtonRightDown = isPressed
+			}
 
 		case *sdl.MouseMotionEvent:
-			input.HandleMouseMotionEvent(e)
+
+			if !imguiCaptureMouse {
+				input.HandleMouseMotionEvent(e)
+			}
 
 		case *sdl.WindowEvent:
+
 			if e.Event == sdl.WINDOWEVENT_SIZE_CHANGED {
 				w.handleWindowResize()
 			}
@@ -92,9 +119,9 @@ func (w *Window) handleInputs() {
 	x, y, _ := sdl.GetMouseState()
 	imIo.SetMousePos(imgui.Vec2{X: float32(x), Y: float32(y)})
 
-	imIo.SetMouseButtonDown(0, input.MouseDown(sdl.BUTTON_LEFT))
-	imIo.SetMouseButtonDown(1, input.MouseDown(sdl.BUTTON_RIGHT))
-	imIo.SetMouseButtonDown(2, input.MouseDown(sdl.BUTTON_MIDDLE))
+	imIo.SetMouseButtonDown(0, isSdlButtonLeftDown)
+	imIo.SetMouseButtonDown(1, isSdlButtonRightDown)
+	imIo.SetMouseButtonDown(2, isSdlButtonMiddleDown)
 }
 
 func (w *Window) handleWindowResize() {

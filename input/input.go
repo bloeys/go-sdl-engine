@@ -31,8 +31,8 @@ type mouseWheelState struct {
 }
 
 var (
-	keyMap        = make(map[sdl.Keycode]*keyState)
-	mouseBtnMap   = make(map[int]*mouseBtnState)
+	keyMap        = make(map[sdl.Keycode]keyState)
+	mouseBtnMap   = make(map[int]mouseBtnState)
 	mouseMotion   = mouseMotionState{}
 	mouseWheel    = mouseWheelState{}
 	quitRequested bool
@@ -70,29 +70,31 @@ func IsQuitClicked() bool {
 
 func HandleKeyboardEvent(e *sdl.KeyboardEvent) {
 
-	ks := keyMap[e.Keysym.Sym]
-	if ks == nil {
-		ks = &keyState{Key: e.Keysym.Sym}
-		keyMap[ks.Key] = ks
+	ks, ok := keyMap[e.Keysym.Sym]
+	if !ok {
+		ks = keyState{Key: e.Keysym.Sym}
 	}
 
 	ks.State = int(e.State)
 	ks.IsPressedThisFrame = e.State == sdl.PRESSED && e.Repeat == 0
 	ks.IsReleasedThisFrame = e.State == sdl.RELEASED && e.Repeat == 0
+
+	keyMap[ks.Key] = ks
 }
 
 func HandleMouseBtnEvent(e *sdl.MouseButtonEvent) {
 
-	mb := mouseBtnMap[int(e.Button)]
-	if mb == nil {
-		mb = &mouseBtnState{Btn: int(e.Button)}
-		mouseBtnMap[int(e.Button)] = mb
+	mb, ok := mouseBtnMap[int(e.Button)]
+	if !ok {
+		mb = mouseBtnState{Btn: int(e.Button)}
 	}
 
 	mb.State = int(e.State)
 	mb.IsDoubleClicked = e.Clicks == 2 && e.State == sdl.PRESSED
 	mb.IsPressedThisFrame = e.State == sdl.PRESSED
 	mb.IsReleasedThisFrame = e.State == sdl.RELEASED
+
+	mouseBtnMap[int(e.Button)] = mb
 }
 
 func HandleMouseMotionEvent(e *sdl.MouseMotionEvent) {
@@ -109,12 +111,12 @@ func HandleMouseWheelEvent(e *sdl.MouseWheelEvent) {
 	mouseWheel.YDelta = e.Y
 }
 
-//GetMousePos returns the window coordinates of the mouse
+// GetMousePos returns the window coordinates of the mouse
 func GetMousePos() (x, y int32) {
 	return mouseMotion.XPos, mouseMotion.YPos
 }
 
-//GetMouseMotion returns how many pixels were moved last frame
+// GetMouseMotion returns how many pixels were moved last frame
 func GetMouseMotion() (xDelta, yDelta int32) {
 	return mouseMotion.XDelta, mouseMotion.YDelta
 }
@@ -141,7 +143,7 @@ func GetMouseWheelMotion() (xDelta, yDelta int32) {
 	return mouseWheel.XDelta, mouseWheel.YDelta
 }
 
-//GetMouseWheelXNorm returns 1 if mouse wheel xDelta > 0, -1 if xDelta < 0, and 0 otherwise
+// GetMouseWheelXNorm returns 1 if mouse wheel xDelta > 0, -1 if xDelta < 0, and 0 otherwise
 func GetMouseWheelXNorm() int32 {
 
 	if mouseWheel.XDelta > 0 {
@@ -153,7 +155,7 @@ func GetMouseWheelXNorm() int32 {
 	return 0
 }
 
-//returns 1 if mouse wheel yDelta > 0, -1 if yDelta < 0, and 0 otherwise
+// returns 1 if mouse wheel yDelta > 0, -1 if yDelta < 0, and 0 otherwise
 func GetMouseWheelYNorm() int32 {
 
 	if mouseWheel.YDelta > 0 {
@@ -167,8 +169,8 @@ func GetMouseWheelYNorm() int32 {
 
 func KeyClicked(kc sdl.Keycode) bool {
 
-	ks := keyMap[kc]
-	if ks == nil {
+	ks, ok := keyMap[kc]
+	if !ok {
 		return false
 	}
 
@@ -177,8 +179,8 @@ func KeyClicked(kc sdl.Keycode) bool {
 
 func KeyReleased(kc sdl.Keycode) bool {
 
-	ks := keyMap[kc]
-	if ks == nil {
+	ks, ok := keyMap[kc]
+	if !ok {
 		return false
 	}
 
@@ -187,8 +189,8 @@ func KeyReleased(kc sdl.Keycode) bool {
 
 func KeyDown(kc sdl.Keycode) bool {
 
-	ks := keyMap[kc]
-	if ks == nil {
+	ks, ok := keyMap[kc]
+	if !ok {
 		return false
 	}
 
@@ -197,8 +199,8 @@ func KeyDown(kc sdl.Keycode) bool {
 
 func KeyUp(kc sdl.Keycode) bool {
 
-	ks := keyMap[kc]
-	if ks == nil {
+	ks, ok := keyMap[kc]
+	if !ok {
 		return true
 	}
 
@@ -207,8 +209,8 @@ func KeyUp(kc sdl.Keycode) bool {
 
 func MouseClicked(mb int) bool {
 
-	btn := mouseBtnMap[mb]
-	if btn == nil {
+	btn, ok := mouseBtnMap[mb]
+	if !ok {
 		return false
 	}
 
@@ -217,8 +219,8 @@ func MouseClicked(mb int) bool {
 
 func MouseDoubleClicked(mb int) bool {
 
-	btn := mouseBtnMap[mb]
-	if btn == nil {
+	btn, ok := mouseBtnMap[mb]
+	if !ok {
 		return false
 	}
 
@@ -226,8 +228,8 @@ func MouseDoubleClicked(mb int) bool {
 }
 
 func MouseReleased(mb int) bool {
-	btn := mouseBtnMap[mb]
-	if btn == nil {
+	btn, ok := mouseBtnMap[mb]
+	if !ok {
 		return false
 	}
 
@@ -236,8 +238,8 @@ func MouseReleased(mb int) bool {
 
 func MouseDown(mb int) bool {
 
-	btn := mouseBtnMap[mb]
-	if btn == nil {
+	btn, ok := mouseBtnMap[mb]
+	if !ok {
 		return false
 	}
 
@@ -246,8 +248,8 @@ func MouseDown(mb int) bool {
 
 func MouseUp(mb int) bool {
 
-	btn := mouseBtnMap[mb]
-	if btn == nil {
+	btn, ok := mouseBtnMap[mb]
+	if !ok {
 		return true
 	}
 
