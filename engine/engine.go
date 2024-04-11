@@ -19,6 +19,9 @@ var (
 	isSdlButtonLeftDown   = false
 	isSdlButtonMiddleDown = false
 	isSdlButtonRightDown  = false
+
+	ImguiRelativeMouseModePosX float32
+	ImguiRelativeMouseModePosY float32
 )
 
 type Window struct {
@@ -115,13 +118,17 @@ func (w *Window) handleInputs() {
 		}
 	}
 
-	// If a mouse press event came, always pass it as "mouse held this frame", so we don't miss click-release events that are shorter than 1 frame.
-	x, y, _ := sdl.GetMouseState()
-	imIo.SetMousePos(imgui.Vec2{X: float32(x), Y: float32(y)})
+	if sdl.GetRelativeMouseMode() {
+		imIo.SetMousePos(imgui.Vec2{X: ImguiRelativeMouseModePosX, Y: ImguiRelativeMouseModePosY})
+	} else {
+		x, y, _ := sdl.GetMouseState()
+		imIo.SetMousePos(imgui.Vec2{X: float32(x), Y: float32(y)})
+	}
 
-	imIo.SetMouseButtonDown(0, isSdlButtonLeftDown)
-	imIo.SetMouseButtonDown(1, isSdlButtonRightDown)
-	imIo.SetMouseButtonDown(2, isSdlButtonMiddleDown)
+	// If a mouse press event came, always pass it as "mouse held this frame", so we don't miss click-release events that are shorter than 1 frame.
+	imIo.SetMouseButtonDown(imgui.MouseButtonLeft, isSdlButtonLeftDown)
+	imIo.SetMouseButtonDown(imgui.MouseButtonRight, isSdlButtonRightDown)
+	imIo.SetMouseButtonDown(imgui.MouseButtonMiddle, isSdlButtonMiddleDown)
 }
 
 func (w *Window) handleWindowResize() {
