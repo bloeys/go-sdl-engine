@@ -73,7 +73,6 @@ var (
 	dpiScaling float32
 
 	// Light settings
-	ambientStrength   float32 = 0.2
 	ambientColor              = gglm.NewVec3(1, 1, 1)
 	specularStrength  float32 = 1
 	specularShininess float32 = 128
@@ -287,7 +286,6 @@ func (g *OurGame) Init() {
 	updateViewMat()
 
 	// Light settings
-	simpleMat.SetUnifFloat32("ambientStrength", ambientStrength)
 	simpleMat.SetUnifVec3("ambientColor", ambientColor)
 	simpleMat.SetUnifFloat32("specularShininess", specularShininess)
 	simpleMat.SetUnifFloat32("specularStrength", specularStrength)
@@ -338,10 +336,6 @@ func (g *OurGame) showDebugWindow() {
 	imgui.Spacing()
 
 	// Light settings
-	if imgui.DragFloat("Ambient Strength", &ambientStrength) {
-		simpleMat.SetUnifFloat32("ambientStrength", ambientStrength)
-	}
-
 	if imgui.DragFloat3("Ambient Color", &ambientColor.Data) {
 		simpleMat.SetUnifVec3("ambientColor", ambientColor)
 	}

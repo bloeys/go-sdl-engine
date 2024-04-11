@@ -34,7 +34,6 @@ void main()
 //shader:fragment
 #version 410
 
-uniform float ambientStrength = 0;
 uniform vec3 ambientColor = vec3(1, 1, 1);
 
 uniform float specularShininess = 32;
@@ -57,20 +56,20 @@ out vec4 fragColor;
 void main()
 {
     vec3 lightDir = normalize(lightPos1 - fragPos);
+    vec4 diffuseTexColor = texture(diffTex, vertUV0);
+
+    // Ambient
+    vec3 finalAmbient = ambientColor * diffuseTexColor.rgb;
 
     // Diffuse
-    float diffuseStrength = max(0.0, dot(normalize(vertNormal), lightDir));
-    vec3 finalDiffuse = diffuseStrength * lightColor1;
+    float diffuseAmount = max(0.0, dot(normalize(vertNormal), lightDir));
+    vec3 finalDiffuse = diffuseAmount * lightColor1 * diffuseTexColor.rgb;
 
     // Specular
     vec3 viewDir = normalize(camPos - fragPos);
     vec3 reflectDir = reflect(-lightDir, vertNormal);
     float specularAmount = pow(max(dot(viewDir, reflectDir), 0.0), specularShininess);
-    vec3 finalSpecular = specularAmount * specularStrength * lightColor1;
+    vec3 finalSpecular = specularAmount * specularStrength * lightColor1 * diffuseTexColor.rgb;
 
-    // Ambient
-    vec3 finalAmbient = ambientColor * ambientStrength;
-
-    vec4 texColor = texture(diffTex, vertUV0);
-    fragColor = vec4(texColor.rgb * vertColor * (finalAmbient + finalDiffuse + finalSpecular) , texColor.a);
+    fragColor = vec4(finalAmbient + finalDiffuse + finalSpecular, 1);
 } 
