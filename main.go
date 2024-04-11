@@ -53,11 +53,12 @@ var (
 	window *engine.Window
 
 	pitch float32 = 0
-	yaw   float32 = -90
+	yaw   float32 = 0
 	cam   *camera.Camera
 
-	simpleMat *materials.Material
-	skyboxMat *materials.Material
+	simpleMat     *materials.Material
+	skyboxMat     *materials.Material
+	debugDepthMat *materials.Material
 
 	chairMesh  *meshes.Mesh
 	cubeMesh   *meshes.Mesh
@@ -65,15 +66,21 @@ var (
 
 	cubeModelMat = gglm.NewTrMatId()
 
-	lightPos1   = gglm.NewVec3(-2, 0, 2)
-	lightColor1 = gglm.NewVec3(1, 1, 1)
-
-	debugDepthMat        *materials.Material
 	debugDrawDepthBuffer bool
 
 	skyboxCmap assets.Cubemap
 
 	dpiScaling float32
+
+	// Light settings
+	ambientStrength   float32 = 0.2
+	ambientColor              = gglm.NewVec3(1, 1, 1)
+	specularStrength  float32 = 1
+	specularShininess float32 = 128
+
+	// Lights
+	lightPos1   = gglm.NewVec3(-2, 10, 0)
+	lightColor1 = gglm.NewVec3(1, 1, 1)
 )
 
 type OurGame struct {
@@ -239,7 +246,7 @@ func (g *OurGame) Init() {
 	}
 
 	//Load textures
-	tex, err := assets.LoadTexturePNG("./res/textures/pallete-endesga-64-1x.png", &assets.TextureLoadOptions{TextureIsSrgba: true})
+	palleteTex, err := assets.LoadTexturePNG("./res/textures/pallete-endesga-64-1x.png", &assets.TextureLoadOptions{TextureIsSrgba: true})
 	if err != nil {
 		logging.ErrLog.Fatalln("Failed to load texture. Err: ", err)
 	}
@@ -255,7 +262,7 @@ func (g *OurGame) Init() {
 	}
 
 	// Configure materials
-	simpleMat.DiffuseTex = tex.TexID
+	simpleMat.DiffuseTex = palleteTex.TexID
 
 	//Movement, scale and rotation
 	translationMat := gglm.NewTranslationMat(gglm.NewVec3(0, 0, 0))
@@ -279,11 +286,16 @@ func (g *OurGame) Init() {
 
 	updateViewMat()
 
+	// Light settings
+	simpleMat.SetUnifFloat32("ambientStrength", ambientStrength)
+	simpleMat.SetUnifVec3("ambientColor", ambientColor)
+	simpleMat.SetUnifFloat32("specularShininess", specularShininess)
+	simpleMat.SetUnifFloat32("specularStrength", specularStrength)
+
 	//Lights
 	simpleMat.SetUnifVec3("lightPos1", lightPos1)
 	simpleMat.SetUnifVec3("lightColor1", lightColor1)
 
-	sdl.SetRelativeMouseMode(true)
 }
 
 func (g *OurGame) Update() {
@@ -302,7 +314,20 @@ func (g *OurGame) Update() {
 		cubeModelMat.Rotate(10*timing.DT()*gglm.Deg2Rad, gglm.NewVec3(1, 1, 1).Normalize())
 	}
 
+	g.showDebugWindow()
+
+	if input.KeyClicked(sdl.K_F4) {
+		fmt.Printf("Pos: %s; Forward: %s; |Forward|: %f\n", cam.Pos.String(), cam.Forward.String(), cam.Forward.Mag())
+	}
+
+	g.Win.SDLWin.SetTitle(fmt.Sprint("nMage (", timing.GetAvgFPS(), " fps)"))
+}
+
+func (g *OurGame) showDebugWindow() {
+
 	imgui.Begin("Debug controls")
+
+	// Camera
 	if imgui.DragFloat3("Cam Pos", &cam.Pos.Data) {
 		updateViewMat()
 	}
@@ -310,6 +335,30 @@ func (g *OurGame) Update() {
 		updateViewMat()
 	}
 
+	imgui.Spacing()
+
+	// Light settings
+	if imgui.DragFloat("Ambient Strength", &ambientStrength) {
+		simpleMat.SetUnifFloat32("ambientStrength", ambientStrength)
+	}
+
+	if imgui.DragFloat3("Ambient Color", &ambientColor.Data) {
+		simpleMat.SetUnifVec3("ambientColor", ambientColor)
+	}
+
+	imgui.Spacing()
+
+	if imgui.DragFloat("Specular Shininess", &specularShininess) {
+		simpleMat.SetUnifFloat32("specularShininess", specularShininess)
+	}
+
+	if imgui.DragFloat("Specular Strength", &specularStrength) {
+		simpleMat.SetUnifFloat32("specularStrength", specularStrength)
+	}
+
+	imgui.Spacing()
+
+	// Lights
 	if imgui.DragFloat3("Light Pos 1", &lightPos1.Data) {
 		simpleMat.SetUnifVec3("lightPos1", lightPos1)
 	}
@@ -318,14 +367,12 @@ func (g *OurGame) Update() {
 		simpleMat.SetUnifVec3("lightColor1", lightColor1)
 	}
 
+	imgui.Spacing()
+
+	// Other
 	imgui.Checkbox("Debug depth buffer", &debugDrawDepthBuffer)
+
 	imgui.End()
-
-	if input.KeyClicked(sdl.K_F4) {
-		fmt.Printf("Pos: %s; Forward: %s; |Forward|: %f\n", cam.Pos.String(), cam.Forward.String(), cam.Forward.Mag())
-	}
-
-	g.Win.SDLWin.SetTitle(fmt.Sprint("nMage (", timing.GetAvgFPS(), " fps)"))
 }
 
 func (g *OurGame) updateCameraLookAround() {
@@ -340,12 +387,12 @@ func (g *OurGame) updateCameraLookAround() {
 
 	// Pitch
 	pitch += float32(-mouseY) * mouseSensitivity * timing.DT()
-	if pitch > 89.0 {
-		pitch = 89.0
+	if pitch > 1.5 {
+		pitch = 1.5
 	}
 
-	if pitch < -89.0 {
-		pitch = -89.0
+	if pitch < -1.5 {
+		pitch = -1.5
 	}
 
 	// Update cam forward
@@ -393,9 +440,18 @@ func (g *OurGame) Render() {
 		matToUse = debugDepthMat
 	}
 
+	if matToUse == simpleMat {
+		matToUse.SetUnifVec3("camPos", &cam.Pos)
+	}
+
+	// Draw sun
+	window.Rend.Draw(cubeMesh, gglm.NewTrMatId().Translate(lightPos1).Scale(gglm.NewVec3(0.1, 0.1, 0.1)), matToUse)
+
+	// Chair
 	tempModelMatrix := cubeModelMat.Clone()
 	window.Rend.Draw(chairMesh, tempModelMatrix, matToUse)
 
+	// Cubes
 	rowSize := 1
 	for y := 0; y < rowSize; y++ {
 		for x := 0; x < rowSize; x++ {

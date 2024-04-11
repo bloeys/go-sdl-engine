@@ -18,7 +18,12 @@ uniform mat4 projMat;
 
 void main()
 {
+    // @TODO: Calculate this on the CPU and send it as a uniform
+
+    // This produces the normal matrix that multiplies with the model normal to produce the
+    // world space normal. Based on 'One last thing' section from: https://learnopengl.com/Lighting/Basic-Lighting
     vertNormal = mat3(transpose(inverse(modelMat))) * vertNormalIn;
+    
     vertUV0 = vertUV0In;
     vertColor = vertColorIn;
     fragPos = vec3(modelMat * vec4(vertPosIn, 1.0));
@@ -30,7 +35,12 @@ void main()
 #version 410
 
 uniform float ambientStrength = 0;
-uniform vec3 ambientLightColor = vec3(1, 1, 1);
+uniform vec3 ambientColor = vec3(1, 1, 1);
+
+uniform float specularShininess = 32;
+uniform float specularStrength = 0.5;
+
+uniform vec3 camPos;
 
 uniform vec3 lightPos1;
 uniform vec3 lightColor1;
@@ -46,10 +56,21 @@ out vec4 fragColor;
 
 void main()
 {
-    vec3 lightDir = normalize(lightPos1 - fragPos);  
-    float diffStrength = max(0.0, dot(normalize(vertNormal), lightDir));
+    vec3 lightDir = normalize(lightPos1 - fragPos);
 
-    vec3 finalAmbientColor = ambientLightColor * ambientStrength;
+    // Diffuse
+    float diffuseStrength = max(0.0, dot(normalize(vertNormal), lightDir));
+    vec3 finalDiffuse = diffuseStrength * lightColor1;
+
+    // Specular
+    vec3 viewDir = normalize(camPos - fragPos);
+    vec3 reflectDir = reflect(-lightDir, vertNormal);
+    float specularAmount = pow(max(dot(viewDir, reflectDir), 0.0), specularShininess);
+    vec3 finalSpecular = specularAmount * specularStrength * lightColor1;
+
+    // Ambient
+    vec3 finalAmbient = ambientColor * ambientStrength;
+
     vec4 texColor = texture(diffTex, vertUV0);
-    fragColor = vec4(texColor.rgb * vertColor * (finalAmbientColor + diffStrength*lightColor1) , texColor.a);
+    fragColor = vec4(texColor.rgb * vertColor * (finalAmbient + finalDiffuse + finalSpecular) , texColor.a);
 } 
