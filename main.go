@@ -56,12 +56,15 @@ var (
 	yaw   float32 = 0
 	cam   *camera.Camera
 
-	simpleMat     *materials.Material
+	whiteMat      *materials.Material
+	containerMat  *materials.Material
+	palleteMat    *materials.Material
 	skyboxMat     *materials.Material
 	debugDepthMat *materials.Material
 
-	chairMesh  *meshes.Mesh
 	cubeMesh   *meshes.Mesh
+	sphereMesh *meshes.Mesh
+	chairMesh  *meshes.Mesh
 	skyboxMesh *meshes.Mesh
 
 	cubeModelMat = gglm.NewTrMatId()
@@ -73,9 +76,7 @@ var (
 	dpiScaling float32
 
 	// Light settings
-	ambientColor              = gglm.NewVec3(1, 1, 1)
-	specularStrength  float32 = 1
-	specularShininess float32 = 128
+	ambientColor = gglm.NewVec3(0.2, 0.2, 0.2)
 
 	// Lights
 	lightPos1   = gglm.NewVec3(-2, 10, 0)
@@ -179,7 +180,7 @@ func (g *OurGame) handleWindowEvents(e sdl.Event) {
 			cam.AspectRatio = float32(width) / float32(height)
 			cam.Update()
 
-			simpleMat.SetUnifMat4("projMat", &cam.ProjMat)
+			palleteMat.SetUnifMat4("projMat", &cam.ProjMat)
 			debugDepthMat.SetUnifMat4("projMat", &cam.ProjMat)
 		}
 	}
@@ -223,13 +224,24 @@ func (g *OurGame) Init() {
 
 	var err error
 
-	//Create materials
-	simpleMat = materials.NewMaterial("Simple mat", "./res/shaders/simple.glsl")
-	debugDepthMat = materials.NewMaterial("Debug depth mat", "./res/shaders/debug-depth.glsl")
-	skyboxMat = materials.NewMaterial("Skybox mat", "./res/shaders/skybox.glsl")
+	// Camera
+	winWidth, winHeight := g.Win.SDLWin.GetSize()
+	cam = camera.NewPerspective(
+		gglm.NewVec3(0, 0, 10),
+		gglm.NewVec3(0, 0, -1),
+		gglm.NewVec3(0, 1, 0),
+		0.1, 200,
+		45*gglm.Deg2Rad,
+		float32(winWidth)/float32(winHeight),
+	)
 
 	//Load meshes
-	cubeMesh, err = meshes.NewMesh("Cube", "./res/models/tex-cube.fbx", 0)
+	cubeMesh, err = meshes.NewMesh("Cube", "./res/models/cube.fbx", 0)
+	if err != nil {
+		logging.ErrLog.Fatalln("Failed to load mesh. Err: ", err)
+	}
+
+	sphereMesh, err = meshes.NewMesh("Sphere", "./res/models/sphere.fbx", 0)
 	if err != nil {
 		logging.ErrLog.Fatalln("Failed to load mesh. Err: ", err)
 	}
@@ -245,6 +257,21 @@ func (g *OurGame) Init() {
 	}
 
 	//Load textures
+	whiteTex, err := assets.LoadTexturePNG("./res/textures/white.png", &assets.TextureLoadOptions{TextureIsSrgba: true})
+	if err != nil {
+		logging.ErrLog.Fatalln("Failed to load texture. Err: ", err)
+	}
+
+	containerDiffuseTex, err := assets.LoadTexturePNG("./res/textures/container-diffuse.png", &assets.TextureLoadOptions{TextureIsSrgba: true})
+	if err != nil {
+		logging.ErrLog.Fatalln("Failed to load texture. Err: ", err)
+	}
+
+	containerSpecularTex, err := assets.LoadTexturePNG("./res/textures/container-specular.png", &assets.TextureLoadOptions{TextureIsSrgba: true})
+	if err != nil {
+		logging.ErrLog.Fatalln("Failed to load texture. Err: ", err)
+	}
+
 	palleteTex, err := assets.LoadTexturePNG("./res/textures/pallete-endesga-64-1x.png", &assets.TextureLoadOptions{TextureIsSrgba: true})
 	if err != nil {
 		logging.ErrLog.Fatalln("Failed to load texture. Err: ", err)
@@ -260,40 +287,47 @@ func (g *OurGame) Init() {
 		logging.ErrLog.Fatalln("Failed to load cubemap. Err: ", err)
 	}
 
-	// Configure materials
-	simpleMat.DiffuseTex = palleteTex.TexID
+	// Create materials
+	whiteMat = materials.NewMaterial("White mat", "./res/shaders/simple.glsl")
+	whiteMat.Shininess = 128
+	whiteMat.DiffuseTex = whiteTex.TexID
+	whiteMat.SetUnifMat4("projMat", &cam.ProjMat)
+	whiteMat.SetUnifVec3("ambientColor", ambientColor)
+	whiteMat.SetUnifFloat32("material.shininess", whiteMat.Shininess)
+	whiteMat.SetUnifVec3("lightPos1", lightPos1)
+	whiteMat.SetUnifVec3("lightColor1", lightColor1)
 
-	//Movement, scale and rotation
+	containerMat = materials.NewMaterial("Container mat", "./res/shaders/simple.glsl")
+	containerMat.Shininess = 128
+	containerMat.DiffuseTex = containerDiffuseTex.TexID
+	containerMat.SpecularTex = containerSpecularTex.TexID
+	containerMat.SetUnifMat4("projMat", &cam.ProjMat)
+	containerMat.SetUnifVec3("ambientColor", ambientColor)
+	containerMat.SetUnifFloat32("material.shininess", containerMat.Shininess)
+	containerMat.SetUnifVec3("lightPos1", lightPos1)
+	containerMat.SetUnifVec3("lightColor1", lightColor1)
+
+	palleteMat = materials.NewMaterial("Pallete mat", "./res/shaders/simple.glsl")
+	palleteMat.Shininess = 128
+	palleteMat.DiffuseTex = palleteTex.TexID
+	palleteMat.SetUnifMat4("projMat", &cam.ProjMat)
+	palleteMat.SetUnifVec3("ambientColor", ambientColor)
+	palleteMat.SetUnifFloat32("material.shininess", palleteMat.Shininess)
+	palleteMat.SetUnifVec3("lightPos1", lightPos1)
+	palleteMat.SetUnifVec3("lightColor1", lightColor1)
+
+	debugDepthMat = materials.NewMaterial("Debug depth mat", "./res/shaders/debug-depth.glsl")
+	debugDepthMat.SetUnifMat4("projMat", &cam.ProjMat)
+
+	skyboxMat = materials.NewMaterial("Skybox mat", "./res/shaders/skybox.glsl")
+
+	// Movement, scale and rotation
 	translationMat := gglm.NewTranslationMat(gglm.NewVec3(0, 0, 0))
 	scaleMat := gglm.NewScaleMat(gglm.NewVec3(1, 1, 1))
 	rotMat := gglm.NewRotMat(gglm.NewQuatEuler(gglm.NewVec3(-90, -90, 0).AsRad()))
-
 	cubeModelMat.Mul(translationMat.Mul(rotMat.Mul(scaleMat)))
 
-	// Camera
-	winWidth, winHeight := g.Win.SDLWin.GetSize()
-	cam = camera.NewPerspective(
-		gglm.NewVec3(0, 0, 10),
-		gglm.NewVec3(0, 0, -1),
-		gglm.NewVec3(0, 1, 0),
-		0.1, 200,
-		45*gglm.Deg2Rad,
-		float32(winWidth)/float32(winHeight),
-	)
-	simpleMat.SetUnifMat4("projMat", &cam.ProjMat)
-	debugDepthMat.SetUnifMat4("projMat", &cam.ProjMat)
-
 	updateViewMat()
-
-	// Light settings
-	simpleMat.SetUnifVec3("ambientColor", ambientColor)
-	simpleMat.SetUnifFloat32("specularShininess", specularShininess)
-	simpleMat.SetUnifFloat32("specularStrength", specularStrength)
-
-	//Lights
-	simpleMat.SetUnifVec3("lightPos1", lightPos1)
-	simpleMat.SetUnifVec3("lightColor1", lightColor1)
-
 }
 
 func (g *OurGame) Update() {
@@ -304,8 +338,6 @@ func (g *OurGame) Update() {
 
 	g.updateCameraLookAround()
 	g.updateCameraPos()
-
-	imgui.ShowDemoWindow()
 
 	//Rotating cubes
 	if input.KeyDown(sdl.K_SPACE) {
@@ -323,6 +355,8 @@ func (g *OurGame) Update() {
 
 func (g *OurGame) showDebugWindow() {
 
+	imgui.ShowDemoWindow()
+
 	imgui.Begin("Debug controls")
 
 	// Camera
@@ -337,28 +371,32 @@ func (g *OurGame) showDebugWindow() {
 
 	// Light settings
 	if imgui.DragFloat3("Ambient Color", &ambientColor.Data) {
-		simpleMat.SetUnifVec3("ambientColor", ambientColor)
+		whiteMat.SetUnifVec3("ambientColor", ambientColor)
+		containerMat.SetUnifVec3("ambientColor", ambientColor)
+		palleteMat.SetUnifVec3("ambientColor", ambientColor)
 	}
 
 	imgui.Spacing()
 
-	if imgui.DragFloat("Specular Shininess", &specularShininess) {
-		simpleMat.SetUnifFloat32("specularShininess", specularShininess)
-	}
-
-	if imgui.DragFloat("Specular Strength", &specularStrength) {
-		simpleMat.SetUnifFloat32("specularStrength", specularStrength)
+	if imgui.DragFloat("Specular Shininess", &whiteMat.Shininess) {
+		whiteMat.SetUnifFloat32("material.shininess", whiteMat.Shininess)
+		containerMat.SetUnifFloat32("material.shininess", whiteMat.Shininess)
+		palleteMat.SetUnifFloat32("material.shininess", whiteMat.Shininess)
 	}
 
 	imgui.Spacing()
 
 	// Lights
 	if imgui.DragFloat3("Light Pos 1", &lightPos1.Data) {
-		simpleMat.SetUnifVec3("lightPos1", lightPos1)
+		whiteMat.SetUnifVec3("lightPos1", lightPos1)
+		containerMat.SetUnifVec3("lightPos1", lightPos1)
+		palleteMat.SetUnifVec3("lightPos1", lightPos1)
 	}
 
 	if imgui.DragFloat3("Light Color 1", &lightColor1.Data) {
-		simpleMat.SetUnifVec3("lightColor1", lightColor1)
+		whiteMat.SetUnifVec3("lightColor1", lightColor1)
+		containerMat.SetUnifVec3("lightColor1", lightColor1)
+		palleteMat.SetUnifVec3("lightColor1", lightColor1)
 	}
 
 	imgui.Spacing()
@@ -429,28 +467,33 @@ func (g *OurGame) updateCameraPos() {
 
 func (g *OurGame) Render() {
 
-	matToUse := simpleMat
-	if debugDrawDepthBuffer {
-		matToUse = debugDepthMat
-	}
+	tempModelMatrix := cubeModelMat.Clone()
 
-	if matToUse == simpleMat {
-		matToUse.SetUnifVec3("camPos", &cam.Pos)
+	whiteMat.SetUnifVec3("camPos", &cam.Pos)
+	containerMat.SetUnifVec3("camPos", &cam.Pos)
+	palleteMat.SetUnifVec3("camPos", &cam.Pos)
+
+	sunMat := palleteMat
+	chairMat := palleteMat
+	cubeMat := containerMat
+	if debugDrawDepthBuffer {
+		sunMat = debugDepthMat
+		chairMat = debugDepthMat
+		cubeMat = debugDepthMat
 	}
 
 	// Draw sun
-	window.Rend.Draw(cubeMesh, gglm.NewTrMatId().Translate(lightPos1).Scale(gglm.NewVec3(0.1, 0.1, 0.1)), matToUse)
+	window.Rend.Draw(sphereMesh, gglm.NewTrMatId().Translate(lightPos1).Scale(gglm.NewVec3(0.1, 0.1, 0.1)), sunMat)
 
 	// Chair
-	tempModelMatrix := cubeModelMat.Clone()
-	window.Rend.Draw(chairMesh, tempModelMatrix, matToUse)
+	window.Rend.Draw(chairMesh, tempModelMatrix, chairMat)
 
 	// Cubes
 	rowSize := 1
 	for y := 0; y < rowSize; y++ {
 		for x := 0; x < rowSize; x++ {
 			tempModelMatrix.Translate(gglm.NewVec3(-6, 0, 0))
-			window.Rend.Draw(cubeMesh, tempModelMatrix, matToUse)
+			window.Rend.Draw(cubeMesh, tempModelMatrix, cubeMat)
 		}
 		tempModelMatrix.Translate(gglm.NewVec3(float32(rowSize), -1, 0))
 	}
@@ -478,7 +521,6 @@ func (g *OurGame) DrawSkybox() {
 
 	skyboxMat.SetUnifMat4("viewMat", viewMat)
 	skyboxMat.SetUnifMat4("projMat", &cam.ProjMat)
-	// window.Rend.Draw(cubeMesh, gglm.NewTrMatId(), skyboxMat)
 	for i := 0; i < len(skyboxMesh.SubMeshes); i++ {
 		gl.DrawElementsBaseVertexWithOffset(gl.TRIANGLES, skyboxMesh.SubMeshes[i].IndexCount, gl.UNSIGNED_INT, uintptr(skyboxMesh.SubMeshes[i].BaseIndex), skyboxMesh.SubMeshes[i].BaseVertex)
 	}
@@ -496,6 +538,8 @@ func (g *OurGame) DeInit() {
 
 func updateViewMat() {
 	cam.Update()
-	simpleMat.SetUnifMat4("viewMat", &cam.ViewMat)
+	whiteMat.SetUnifMat4("viewMat", &cam.ViewMat)
+	containerMat.SetUnifMat4("viewMat", &cam.ViewMat)
+	palleteMat.SetUnifMat4("viewMat", &cam.ViewMat)
 	debugDepthMat.SetUnifMat4("viewMat", &cam.ViewMat)
 }

@@ -109,6 +109,7 @@ func (i *ImguiInfo) Render(winWidth, winHeight float32, fbWidth, fbHeight int32)
 				cmd.CallUserCallback(list)
 			} else {
 
+				gl.ActiveTexture(gl.TEXTURE0)
 				gl.BindTexture(gl.TEXTURE_2D, *i.TexID)
 				clipRect := cmd.ClipRect()
 				gl.Scissor(int32(clipRect.X), int32(fbHeight)-int32(clipRect.W), int32(clipRect.Z-clipRect.X), int32(clipRect.W-clipRect.Y))
@@ -142,6 +143,7 @@ func (i *ImguiInfo) AddFontTTF(fontPath string, fontSize float32, fontConfig *im
 	f := a.AddFontFromFileTTFV(fontPath, fontSize, fontConfigToUse, glyphRangesToUse.Data())
 	pixels, width, height, _ := a.GetTextureDataAsAlpha8()
 
+	gl.ActiveTexture(gl.TEXTURE0)
 	gl.BindTexture(gl.TEXTURE_2D, *i.TexID)
 	gl.TexImage2D(gl.TEXTURE_2D, 0, gl.RED, int32(width), int32(height), 0, gl.RED, gl.UNSIGNED_BYTE, pixels)
 
@@ -225,6 +227,7 @@ func NewImGui(shaderPath string) ImguiInfo {
 	gl.GenTextures(1, imguiInfo.TexID)
 
 	// Upload font to gpu
+	gl.ActiveTexture(gl.TEXTURE0)
 	gl.BindTexture(gl.TEXTURE_2D, *imguiInfo.TexID)
 	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR)
 	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)

@@ -34,17 +34,21 @@ void main()
 //shader:fragment
 #version 410
 
-uniform vec3 ambientColor = vec3(1, 1, 1);
+struct Material {
+    sampler2D diffuse;
+    sampler2D specular;
+    sampler2D normal;
+    sampler2D emission;
+    float shininess;
+};
 
-uniform float specularShininess = 32;
-uniform float specularStrength = 0.5;
+uniform Material material;
 
 uniform vec3 camPos;
+uniform vec3 ambientColor = vec3(0.2, 0.2, 0.2);
 
 uniform vec3 lightPos1;
 uniform vec3 lightColor1;
-
-uniform sampler2D diffTex;
 
 in vec3 vertColor;
 in vec3 vertNormal;
@@ -56,7 +60,7 @@ out vec4 fragColor;
 void main()
 {
     vec3 lightDir = normalize(lightPos1 - fragPos);
-    vec4 diffuseTexColor = texture(diffTex, vertUV0);
+    vec4 diffuseTexColor = texture(material.diffuse, vertUV0);
 
     // Ambient
     vec3 finalAmbient = ambientColor * diffuseTexColor.rgb;
@@ -68,8 +72,11 @@ void main()
     // Specular
     vec3 viewDir = normalize(camPos - fragPos);
     vec3 reflectDir = reflect(-lightDir, vertNormal);
-    float specularAmount = pow(max(dot(viewDir, reflectDir), 0.0), specularShininess);
-    vec3 finalSpecular = specularAmount * specularStrength * lightColor1 * diffuseTexColor.rgb;
+    float specularAmount = pow(max(dot(viewDir, reflectDir), 0.0), material.shininess);
+    vec3 finalSpecular = specularAmount * lightColor1 * texture(material.specular, vertUV0).rgb;
 
-    fragColor = vec4(finalAmbient + finalDiffuse + finalSpecular, 1);
+    // Emission
+    vec3 finalEmission = texture(material.emission, vertUV0).rgb;
+
+    fragColor = vec4(finalAmbient + finalDiffuse + finalSpecular + finalEmission, 1);
 } 

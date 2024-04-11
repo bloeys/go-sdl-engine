@@ -12,10 +12,16 @@ type Material struct {
 	Name       string
 	ShaderProg shaders.ShaderProgram
 
-	DiffuseTex uint32
-
 	UnifLocs   map[string]int32
 	AttribLocs map[string]int32
+
+	// Phong shading
+	DiffuseTex  uint32
+	SpecularTex uint32
+	NormalTex   uint32
+	EmissionTex uint32
+
+	Shininess float32
 }
 
 func (m *Material) Bind() {
@@ -24,6 +30,15 @@ func (m *Material) Bind() {
 
 	gl.ActiveTexture(gl.TEXTURE0)
 	gl.BindTexture(gl.TEXTURE_2D, m.DiffuseTex)
+
+	gl.ActiveTexture(gl.TEXTURE1)
+	gl.BindTexture(gl.TEXTURE_2D, m.SpecularTex)
+
+	gl.ActiveTexture(gl.TEXTURE2)
+	gl.BindTexture(gl.TEXTURE_2D, m.NormalTex)
+
+	gl.ActiveTexture(gl.TEXTURE3)
+	gl.BindTexture(gl.TEXTURE_2D, m.EmissionTex)
 }
 
 func (m *Material) UnBind() {
@@ -31,6 +46,15 @@ func (m *Material) UnBind() {
 
 	//TODO: Should we unbind textures here? Are these two lines needed?
 	// gl.ActiveTexture(gl.TEXTURE0)
+	// gl.BindTexture(gl.TEXTURE_2D, 0)
+
+	// gl.ActiveTexture(gl.TEXTURE1)
+	// gl.BindTexture(gl.TEXTURE_2D, 0)
+
+	// gl.ActiveTexture(gl.TEXTURE2)
+	// gl.BindTexture(gl.TEXTURE_2D, 0)
+
+	// gl.ActiveTexture(gl.TEXTURE3)
 	// gl.BindTexture(gl.TEXTURE_2D, 0)
 }
 
