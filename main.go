@@ -22,16 +22,24 @@ import (
 	"github.com/veandco/go-sdl2/sdl"
 )
 
-// @Todo:
-// Integrate physx
-// Create VAO struct independent from VBO to support multi-VBO use cases (e.g. instancing)
-// Renderer batching
-// Scene graph
-// Separate engine loop from rendering loop? or leave it to the user?
-// Abstract keys enum away from sdl
-// Proper Asset loading
-// Frustum culling
-// Material system editor with fields automatically extracted from the shader
+/*
+@TODO:
+	- Rendering:
+		- Phong lighting model
+		- Point lights
+		- Spotlights
+		- HDR
+		- Cascaded shadow mapping
+		- Skeletal animations
+	- Create VAO struct independent from VBO to support multi-VBO use cases (e.g. instancing)
+	- Renderer batching
+	- Scene graph
+	- Separate engine loop from rendering loop? or leave it to the user?
+	- Abstract keys enum away from sdl
+	- Proper Asset loading
+	- Frustum culling
+	- Material system editor with fields automatically extracted from the shader
+*/
 
 const (
 	camSpeed         = 15
