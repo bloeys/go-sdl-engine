@@ -229,6 +229,7 @@ func initOpenGL() error {
 	}
 
 	gl.Enable(gl.DEPTH_TEST)
+	gl.Enable(gl.STENCIL_TEST)
 	gl.Enable(gl.CULL_FACE)
 	gl.CullFace(gl.BACK)
 	gl.FrontFace(gl.CCW)
@@ -252,7 +253,6 @@ func SetSrgbFramebuffer(isEnabled bool) {
 }
 
 func SetVSync(enabled bool) {
-	assert.T(isInited, "engine.Init was not called!")
 
 	if enabled {
 		sdl.GLSetSwapInterval(1)
