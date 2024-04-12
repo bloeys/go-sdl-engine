@@ -102,8 +102,8 @@ vec3 CalcDirLight()
     vec3 finalDiffuse = diffuseAmount * dirLight.diffuseColor * diffuseTexColor.rgb;
 
     // Specular
-    vec3 reflectDir = reflect(-lightDir, normalizedVertNorm);
-    float specularAmount = pow(max(dot(viewDir, reflectDir), 0.0), material.shininess);
+    vec3 halfwayDir = normalize(lightDir + viewDir);
+    float specularAmount = pow(max(dot(normalizedVertNorm, halfwayDir), 0.0), material.shininess);
     vec3 finalSpecular = specularAmount * dirLight.specularColor * specularTexColor.rgb;
 
     return finalDiffuse + finalSpecular;
@@ -123,8 +123,8 @@ vec3 CalcPointLight(PointLight pointLight)
     vec3 finalDiffuse = diffuseAmount * pointLight.diffuseColor * diffuseTexColor.rgb;
 
     // Specular
-    vec3 reflectDir = reflect(-lightDir, normalizedVertNorm);
-    float specularAmount = pow(max(dot(viewDir, reflectDir), 0.0), material.shininess);
+    vec3 halfwayDir = normalize(lightDir + viewDir);
+    float specularAmount = pow(max(dot(normalizedVertNorm, halfwayDir), 0.0), material.shininess);
     vec3 finalSpecular = specularAmount * pointLight.specularColor * specularTexColor.rgb;
 
     // attenuation
@@ -156,8 +156,8 @@ vec3 CalcSpotLight(SpotLight light)
     vec3 finalDiffuse = diffuseAmount * light.diffuseColor * diffuseTexColor.rgb;
 
     // Specular
-    vec3 reflectDir = reflect(-fragToLightDir, normalizedVertNorm);
-    float specularAmount = pow(max(dot(viewDir, reflectDir), 0.0), material.shininess);
+    vec3 halfwayDir = normalize(fragToLightDir + viewDir);
+    float specularAmount = pow(max(dot(normalizedVertNorm, halfwayDir), 0.0), material.shininess);
     vec3 finalSpecular = specularAmount * light.specularColor * specularTexColor.rgb;
 
     return (finalDiffuse + finalSpecular) * intensity;
