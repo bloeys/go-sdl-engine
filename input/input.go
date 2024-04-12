@@ -40,15 +40,17 @@ var (
 
 func EventLoopStart() {
 
-	for _, v := range keyMap {
+	for k, v := range keyMap {
 		v.IsPressedThisFrame = false
 		v.IsReleasedThisFrame = false
+		keyMap[k] = v
 	}
 
-	for _, v := range mouseBtnMap {
+	for k, v := range mouseBtnMap {
 		v.IsPressedThisFrame = false
 		v.IsReleasedThisFrame = false
 		v.IsDoubleClicked = false
+		mouseBtnMap[k] = v
 	}
 
 	mouseMotion.XDelta = 0
@@ -58,6 +60,16 @@ func EventLoopStart() {
 	mouseWheel.YDelta = 0
 
 	quitRequested = false
+}
+
+func ClearKeyboardState() {
+	clear(keyMap)
+}
+
+func ClearMouseState() {
+	clear(mouseBtnMap)
+	mouseMotion = mouseMotionState{}
+	mouseWheel = mouseWheelState{}
 }
 
 func HandleQuitEvent(e *sdl.QuitEvent) {

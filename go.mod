@@ -1,6 +1,6 @@
 module github.com/bloeys/nmage
 
-go 1.18
+go 1.22
 
 require github.com/veandco/go-sdl2 v0.4.35
 

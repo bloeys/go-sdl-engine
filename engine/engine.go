@@ -39,6 +39,14 @@ func (w *Window) handleInputs() {
 	imguiCaptureMouse := imIo.WantCaptureMouse()
 	imguiCaptureKeyboard := imIo.WantCaptureKeyboard()
 
+	if imguiCaptureMouse {
+		input.ClearMouseState()
+	}
+
+	if imguiCaptureKeyboard {
+		input.ClearKeyboardState()
+	}
+
 	for event := sdl.PollEvent(); event != nil; event = sdl.PollEvent() {
 
 		//Fire callbacks
