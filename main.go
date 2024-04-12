@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"runtime"
+	"strconv"
 
 	imgui "github.com/AllenDang/cimgui-go"
 	"github.com/bloeys/gglm/gglm"
@@ -41,6 +42,33 @@ import (
 	- Material system editor with fields automatically extracted from the shader
 */
 
+type DirLight struct {
+	Dir           gglm.Vec3
+	DiffuseColor  gglm.Vec3
+	SpecularColor gglm.Vec3
+}
+
+// Check https://wiki.ogre3d.org/tiki-index.php?page=-Point+Light+Attenuation for values
+type PointLight struct {
+	Pos           gglm.Vec3
+	DiffuseColor  gglm.Vec3
+	SpecularColor gglm.Vec3
+
+	Radius float32
+
+	Constant  float32
+	Linear    float32
+	Quadratic float32
+}
+
+type SpotLight struct {
+	Dir           gglm.Vec3
+	DiffuseColor  gglm.Vec3
+	SpecularColor gglm.Vec3
+	InnerCutoff   float32
+	OuterCutoff   float32
+}
+
 const (
 	camSpeed         = 15
 	mouseSensitivity = 0.5
@@ -53,7 +81,7 @@ var (
 	window *engine.Window
 
 	pitch float32 = 0
-	yaw   float32 = 0
+	yaw   float32 = -1.5
 	cam   *camera.Camera
 
 	whiteMat      *materials.Material
@@ -69,6 +97,7 @@ var (
 
 	cubeModelMat = gglm.NewTrMatId()
 
+	drawSkybox           = true
 	debugDrawDepthBuffer bool
 
 	skyboxCmap assets.Cubemap
@@ -76,14 +105,52 @@ var (
 	dpiScaling float32
 
 	// Light settings
-	ambientColor = gglm.NewVec3(0.2, 0.2, 0.2)
+	ambientColor = gglm.NewVec3(0, 0, 0)
 
 	// Lights
-	lightPos1   = gglm.NewVec3(-2, 10, 0)
-	lightColor1 = gglm.NewVec3(1, 1, 1)
+	dirLight = DirLight{
+		Dir:           *gglm.NewVec3(0, -0.8, 0.2).Normalize(),
+		DiffuseColor:  *gglm.NewVec3(0, 0, 0),
+		SpecularColor: *gglm.NewVec3(0, 0, 0),
+	}
+	pointLights = [...]PointLight{
+		{
+			Pos:           *gglm.NewVec3(0, 5, 0),
+			DiffuseColor:  *gglm.NewVec3(1, 0, 0),
+			SpecularColor: *gglm.NewVec3(1, 1, 1),
+			// These values are for 50m range
+			Constant:  1.0,
+			Linear:    0.09,
+			Quadratic: 0.032,
+		},
+		{
+			Pos:           *gglm.NewVec3(0, -5, 0),
+			DiffuseColor:  *gglm.NewVec3(0, 1, 0),
+			SpecularColor: *gglm.NewVec3(1, 1, 1),
+			Constant:      1.0,
+			Linear:        0.09,
+			Quadratic:     0.032,
+		},
+		{
+			Pos:           *gglm.NewVec3(5, 0, 0),
+			DiffuseColor:  *gglm.NewVec3(1, 1, 1),
+			SpecularColor: *gglm.NewVec3(1, 1, 1),
+			Constant:      1.0,
+			Linear:        0.09,
+			Quadratic:     0.032,
+		},
+		{
+			Pos:           *gglm.NewVec3(-4, 0, 0),
+			DiffuseColor:  *gglm.NewVec3(0, 0, 1),
+			SpecularColor: *gglm.NewVec3(1, 1, 1),
+			Constant:      1.0,
+			Linear:        0.09,
+			Quadratic:     0.032,
+		},
+	}
 )
 
-type OurGame struct {
+type Game struct {
 	Win       *engine.Window
 	ImGUIInfo nmageimgui.ImguiInfo
 }
@@ -160,7 +227,7 @@ func main() {
 	engine.SetVSync(false)
 	engine.SetSrgbFramebuffer(true)
 
-	game := &OurGame{
+	game := &Game{
 		Win:       window,
 		ImGUIInfo: nmageimgui.NewImGui("./res/shaders/imgui.glsl"),
 	}
@@ -169,7 +236,7 @@ func main() {
 	engine.Run(game, window, game.ImGUIInfo)
 }
 
-func (g *OurGame) handleWindowEvents(e sdl.Event) {
+func (g *Game) handleWindowEvents(e sdl.Event) {
 
 	switch e := e.(type) {
 	case *sdl.WindowEvent:
@@ -220,7 +287,7 @@ func getDpiScaling(unscaledWindowWidth, unscaledWindowHeight int32) float32 {
 	return dpiScaling
 }
 
-func (g *OurGame) Init() {
+func (g *Game) Init() {
 
 	var err error
 
@@ -262,6 +329,11 @@ func (g *OurGame) Init() {
 		logging.ErrLog.Fatalln("Failed to load texture. Err: ", err)
 	}
 
+	blackTex, err := assets.LoadTexturePNG("./res/textures/black.png", &assets.TextureLoadOptions{TextureIsSrgba: true})
+	if err != nil {
+		logging.ErrLog.Fatalln("Failed to load texture. Err: ", err)
+	}
+
 	containerDiffuseTex, err := assets.LoadTexturePNG("./res/textures/container-diffuse.png", &assets.TextureLoadOptions{TextureIsSrgba: true})
 	if err != nil {
 		logging.ErrLog.Fatalln("Failed to load texture. Err: ", err)
@@ -287,34 +359,56 @@ func (g *OurGame) Init() {
 		logging.ErrLog.Fatalln("Failed to load cubemap. Err: ", err)
 	}
 
-	// Create materials
+	// Create materials and assign any unused texture slots to black
 	whiteMat = materials.NewMaterial("White mat", "./res/shaders/simple.glsl")
-	whiteMat.Shininess = 128
+	whiteMat.Shininess = 64
 	whiteMat.DiffuseTex = whiteTex.TexID
+	whiteMat.SpecularTex = blackTex.TexID
+	whiteMat.NormalTex = blackTex.TexID
+	whiteMat.EmissionTex = blackTex.TexID
+	whiteMat.SetUnifInt32("material.diffuse", 0)
+	whiteMat.SetUnifInt32("material.specular", 1)
+	// whiteMat.SetUnifInt32("material.normal", 2)
+	whiteMat.SetUnifInt32("material.emission", 3)
 	whiteMat.SetUnifMat4("projMat", &cam.ProjMat)
 	whiteMat.SetUnifVec3("ambientColor", ambientColor)
 	whiteMat.SetUnifFloat32("material.shininess", whiteMat.Shininess)
-	whiteMat.SetUnifVec3("lightPos1", lightPos1)
-	whiteMat.SetUnifVec3("lightColor1", lightColor1)
+	whiteMat.SetUnifVec3("dirLight.dir", &dirLight.Dir)
+	whiteMat.SetUnifVec3("dirLight.diffuseColor", &dirLight.DiffuseColor)
+	whiteMat.SetUnifVec3("dirLight.specularColor", &dirLight.SpecularColor)
 
 	containerMat = materials.NewMaterial("Container mat", "./res/shaders/simple.glsl")
-	containerMat.Shininess = 128
+	containerMat.Shininess = 64
 	containerMat.DiffuseTex = containerDiffuseTex.TexID
 	containerMat.SpecularTex = containerSpecularTex.TexID
+	containerMat.NormalTex = blackTex.TexID
+	containerMat.EmissionTex = blackTex.TexID
+	containerMat.SetUnifInt32("material.diffuse", 0)
+	containerMat.SetUnifInt32("material.specular", 1)
+	// containerMat.SetUnifInt32("material.normal", 2)
+	containerMat.SetUnifInt32("material.emission", 3)
 	containerMat.SetUnifMat4("projMat", &cam.ProjMat)
 	containerMat.SetUnifVec3("ambientColor", ambientColor)
 	containerMat.SetUnifFloat32("material.shininess", containerMat.Shininess)
-	containerMat.SetUnifVec3("lightPos1", lightPos1)
-	containerMat.SetUnifVec3("lightColor1", lightColor1)
+	containerMat.SetUnifVec3("dirLight.dir", &dirLight.Dir)
+	containerMat.SetUnifVec3("dirLight.diffuseColor", &dirLight.DiffuseColor)
+	containerMat.SetUnifVec3("dirLight.specularColor", &dirLight.SpecularColor)
 
 	palleteMat = materials.NewMaterial("Pallete mat", "./res/shaders/simple.glsl")
-	palleteMat.Shininess = 128
+	palleteMat.Shininess = 64
 	palleteMat.DiffuseTex = palleteTex.TexID
+	palleteMat.SpecularTex = blackTex.TexID
+	palleteMat.NormalTex = blackTex.TexID
+	palleteMat.EmissionTex = blackTex.TexID
+	palleteMat.SetUnifInt32("material.diffuse", 0)
+	palleteMat.SetUnifInt32("material.specular", 1)
+	// palleteMat.SetUnifInt32("material.normal", 2)
+	palleteMat.SetUnifInt32("material.emission", 3)
 	palleteMat.SetUnifMat4("projMat", &cam.ProjMat)
 	palleteMat.SetUnifVec3("ambientColor", ambientColor)
 	palleteMat.SetUnifFloat32("material.shininess", palleteMat.Shininess)
-	palleteMat.SetUnifVec3("lightPos1", lightPos1)
-	palleteMat.SetUnifVec3("lightColor1", lightColor1)
+	palleteMat.SetUnifVec3("dirLight.diffuseColor", &dirLight.DiffuseColor)
+	palleteMat.SetUnifVec3("dirLight.specularColor", &dirLight.SpecularColor)
 
 	debugDepthMat = materials.NewMaterial("Debug depth mat", "./res/shaders/debug-depth.glsl")
 	debugDepthMat.SetUnifMat4("projMat", &cam.ProjMat)
@@ -327,10 +421,44 @@ func (g *OurGame) Init() {
 	rotMat := gglm.NewRotMat(gglm.NewQuatEuler(gglm.NewVec3(-90, -90, 0).AsRad()))
 	cubeModelMat.Mul(translationMat.Mul(rotMat.Mul(scaleMat)))
 
+	g.updateLights()
 	updateViewMat()
 }
 
-func (g *OurGame) Update() {
+func (g *Game) updateLights() {
+
+	for i := 0; i < len(pointLights); i++ {
+
+		pl := &pointLights[i]
+		indexString := "pointLights[" + strconv.Itoa(i) + "]"
+
+		whiteMat.SetUnifVec3(indexString+".pos", &pl.Pos)
+		containerMat.SetUnifVec3(indexString+".pos", &pl.Pos)
+		palleteMat.SetUnifVec3(indexString+".pos", &pl.Pos)
+
+		whiteMat.SetUnifVec3(indexString+".diffuseColor", &pl.DiffuseColor)
+		containerMat.SetUnifVec3(indexString+".diffuseColor", &pl.DiffuseColor)
+		palleteMat.SetUnifVec3(indexString+".diffuseColor", &pl.DiffuseColor)
+
+		whiteMat.SetUnifVec3(indexString+".specularColor", &pl.SpecularColor)
+		containerMat.SetUnifVec3(indexString+".specularColor", &pl.SpecularColor)
+		palleteMat.SetUnifVec3(indexString+".specularColor", &pl.SpecularColor)
+
+		whiteMat.SetUnifFloat32(indexString+".constant", pl.Constant)
+		containerMat.SetUnifFloat32(indexString+".constant", pl.Constant)
+		palleteMat.SetUnifFloat32(indexString+".constant", pl.Constant)
+
+		whiteMat.SetUnifFloat32(indexString+".linear", pl.Linear)
+		containerMat.SetUnifFloat32(indexString+".linear", pl.Linear)
+		palleteMat.SetUnifFloat32(indexString+".linear", pl.Linear)
+
+		whiteMat.SetUnifFloat32(indexString+".quadratic", pl.Quadratic)
+		containerMat.SetUnifFloat32(indexString+".quadratic", pl.Quadratic)
+		palleteMat.SetUnifFloat32(indexString+".quadratic", pl.Quadratic)
+	}
+}
+
+func (g *Game) Update() {
 
 	if input.IsQuitClicked() || input.KeyClicked(sdl.K_ESCAPE) {
 		engine.Quit()
@@ -353,13 +481,14 @@ func (g *OurGame) Update() {
 	g.Win.SDLWin.SetTitle(fmt.Sprint("nMage (", timing.GetAvgFPS(), " fps)"))
 }
 
-func (g *OurGame) showDebugWindow() {
+func (g *Game) showDebugWindow() {
 
 	imgui.ShowDemoWindow()
 
 	imgui.Begin("Debug controls")
 
 	// Camera
+	imgui.Text("Camera")
 	if imgui.DragFloat3("Cam Pos", &cam.Pos.Data) {
 		updateViewMat()
 	}
@@ -369,7 +498,9 @@ func (g *OurGame) showDebugWindow() {
 
 	imgui.Spacing()
 
-	// Light settings
+	// Ambient light
+	imgui.Text("Ambient Light")
+
 	if imgui.DragFloat3("Ambient Color", &ambientColor.Data) {
 		whiteMat.SetUnifVec3("ambientColor", ambientColor)
 		containerMat.SetUnifVec3("ambientColor", ambientColor)
@@ -377,6 +508,9 @@ func (g *OurGame) showDebugWindow() {
 	}
 
 	imgui.Spacing()
+
+	// Specular
+	imgui.Text("Specular Settings")
 
 	if imgui.DragFloat("Specular Shininess", &whiteMat.Shininess) {
 		whiteMat.SetUnifFloat32("material.shininess", whiteMat.Shininess)
@@ -386,28 +520,77 @@ func (g *OurGame) showDebugWindow() {
 
 	imgui.Spacing()
 
-	// Lights
-	if imgui.DragFloat3("Light Pos 1", &lightPos1.Data) {
-		whiteMat.SetUnifVec3("lightPos1", lightPos1)
-		containerMat.SetUnifVec3("lightPos1", lightPos1)
-		palleteMat.SetUnifVec3("lightPos1", lightPos1)
+	// Directional light
+	imgui.Text("Directional Light")
+
+	if imgui.DragFloat3("Direction", &dirLight.Dir.Data) {
+		whiteMat.SetUnifVec3("dirLight.dir", &dirLight.Dir)
+		containerMat.SetUnifVec3("dirLight.dir", &dirLight.Dir)
+		palleteMat.SetUnifVec3("dirLight.dir", &dirLight.Dir)
 	}
 
-	if imgui.DragFloat3("Light Color 1", &lightColor1.Data) {
-		whiteMat.SetUnifVec3("lightColor1", lightColor1)
-		containerMat.SetUnifVec3("lightColor1", lightColor1)
-		palleteMat.SetUnifVec3("lightColor1", lightColor1)
+	if imgui.DragFloat3("Diffuse Color", &dirLight.DiffuseColor.Data) {
+		whiteMat.SetUnifVec3("dirLight.diffuseColor", &dirLight.DiffuseColor)
+		containerMat.SetUnifVec3("dirLight.diffuseColor", &dirLight.DiffuseColor)
+		palleteMat.SetUnifVec3("dirLight.diffuseColor", &dirLight.DiffuseColor)
+	}
+
+	if imgui.DragFloat3("Specular Color", &dirLight.SpecularColor.Data) {
+		whiteMat.SetUnifVec3("dirLight.specularColor", &dirLight.SpecularColor)
+		containerMat.SetUnifVec3("dirLight.specularColor", &dirLight.SpecularColor)
+		palleteMat.SetUnifVec3("dirLight.specularColor", &dirLight.SpecularColor)
 	}
 
 	imgui.Spacing()
 
+	// Point lights
+	imgui.Text("Point Lights")
+
+	if imgui.BeginListBoxV("", imgui.Vec2{Y: 200}) {
+
+		for i := 0; i < len(pointLights); i++ {
+
+			pl := &pointLights[i]
+			indexString := strconv.Itoa(i)
+
+			if !imgui.TreeNodeExStrV("Light "+indexString, imgui.TreeNodeFlagsSpanAvailWidth) {
+				continue
+			}
+
+			if imgui.DragFloat3("Pos", &pl.Pos.Data) {
+				whiteMat.SetUnifVec3("pointLights["+indexString+"].pos", &pl.Pos)
+				containerMat.SetUnifVec3("pointLights["+indexString+"].pos", &pl.Pos)
+				palleteMat.SetUnifVec3("pointLights["+indexString+"].pos", &pl.Pos)
+			}
+
+			if imgui.DragFloat3("Diffuse Color", &pl.DiffuseColor.Data) {
+				whiteMat.SetUnifVec3("pointLights["+indexString+"].diffuseColor", &pl.DiffuseColor)
+				containerMat.SetUnifVec3("pointLights["+indexString+"].diffuseColor", &pl.DiffuseColor)
+				palleteMat.SetUnifVec3("pointLights["+indexString+"].diffuseColor", &pl.DiffuseColor)
+			}
+
+			if imgui.DragFloat3("Specular Color", &pl.SpecularColor.Data) {
+				whiteMat.SetUnifVec3("pointLights["+indexString+"].specularColor", &pl.SpecularColor)
+				containerMat.SetUnifVec3("pointLights["+indexString+"].specularColor", &pl.SpecularColor)
+				palleteMat.SetUnifVec3("pointLights["+indexString+"].specularColor", &pl.SpecularColor)
+			}
+
+			imgui.TreePop()
+		}
+
+		imgui.EndListBox()
+	}
+
 	// Other
+	imgui.Text("Other Settings")
+
+	imgui.Checkbox("Draw Skybox", &drawSkybox)
 	imgui.Checkbox("Debug depth buffer", &debugDrawDepthBuffer)
 
 	imgui.End()
 }
 
-func (g *OurGame) updateCameraLookAround() {
+func (g *Game) updateCameraLookAround() {
 
 	mouseX, mouseY := input.GetMouseMotion()
 	if (mouseX == 0 && mouseY == 0) || !input.MouseDown(sdl.BUTTON_RIGHT) {
@@ -433,7 +616,7 @@ func (g *OurGame) updateCameraLookAround() {
 	updateViewMat()
 }
 
-func (g *OurGame) updateCameraPos() {
+func (g *Game) updateCameraPos() {
 
 	update := false
 
@@ -465,7 +648,7 @@ func (g *OurGame) updateCameraPos() {
 	}
 }
 
-func (g *OurGame) Render() {
+func (g *Game) Render() {
 
 	tempModelMatrix := cubeModelMat.Clone()
 
@@ -482,11 +665,21 @@ func (g *OurGame) Render() {
 		cubeMat = debugDepthMat
 	}
 
-	// Draw sun
-	window.Rend.Draw(sphereMesh, gglm.NewTrMatId().Translate(lightPos1).Scale(gglm.NewVec3(0.1, 0.1, 0.1)), sunMat)
+	// Draw dir light
+	window.Rend.Draw(sphereMesh, gglm.NewTrMatId().Translate(gglm.NewVec3(0, 10, 0)).Scale(gglm.NewVec3(0.1, 0.1, 0.1)), sunMat)
+
+	// Draw point lights
+	for i := 0; i < len(pointLights); i++ {
+
+		pl := &pointLights[i]
+		window.Rend.Draw(cubeMesh, gglm.NewTrMatId().Translate(&pl.Pos).Scale(gglm.NewVec3(0.1, 0.1, 0.1)), sunMat)
+	}
 
 	// Chair
 	window.Rend.Draw(chairMesh, tempModelMatrix, chairMat)
+
+	// Ground
+	window.Rend.Draw(cubeMesh, gglm.NewTrMatId().Translate(gglm.NewVec3(0, -3, 0)).Scale(gglm.NewVec3(20, 1, 20)), cubeMat)
 
 	// Cubes
 	rowSize := 1
@@ -498,10 +691,12 @@ func (g *OurGame) Render() {
 		tempModelMatrix.Translate(gglm.NewVec3(float32(rowSize), -1, 0))
 	}
 
-	g.DrawSkybox()
+	if drawSkybox {
+		g.DrawSkybox()
+	}
 }
 
-func (g *OurGame) DrawSkybox() {
+func (g *Game) DrawSkybox() {
 
 	gl.Disable(gl.CULL_FACE)
 	gl.DepthFunc(gl.LEQUAL)
@@ -529,10 +724,10 @@ func (g *OurGame) DrawSkybox() {
 	gl.Enable(gl.CULL_FACE)
 }
 
-func (g *OurGame) FrameEnd() {
+func (g *Game) FrameEnd() {
 }
 
-func (g *OurGame) DeInit() {
+func (g *Game) DeInit() {
 	g.Win.Destroy()
 }
 

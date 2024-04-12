@@ -37,18 +37,35 @@ void main()
 struct Material {
     sampler2D diffuse;
     sampler2D specular;
-    sampler2D normal;
+    // sampler2D normal;
     sampler2D emission;
     float shininess;
 };
 
 uniform Material material;
 
+struct DirLight {
+    vec3 dir;
+    vec3 diffuseColor;
+    vec3 specularColor;
+};
+
+uniform DirLight dirLight;
+
+struct PointLight {
+    vec3 pos;
+    vec3 diffuseColor;
+    vec3 specularColor;
+    float constant;
+    float linear;
+    float quadratic;
+};
+
+#define NUM_POINT_LIGHTS 16
+uniform PointLight pointLights[NUM_POINT_LIGHTS];
+
 uniform vec3 camPos;
 uniform vec3 ambientColor = vec3(0.2, 0.2, 0.2);
-
-uniform vec3 lightPos1;
-uniform vec3 lightColor1;
 
 in vec3 vertColor;
 in vec3 vertNormal;
@@ -57,26 +74,81 @@ in vec3 fragPos;
 
 out vec4 fragColor;
 
-void main()
-{
-    vec3 lightDir = normalize(lightPos1 - fragPos);
-    vec4 diffuseTexColor = texture(material.diffuse, vertUV0);
+// Global variables used as cache for lighting calculations
+vec4 diffuseTexColor;
+vec4 specularTexColor;
+vec4 emissionTexColor;
+vec3 normalizedVertNorm;
+vec3 viewDir;
 
-    // Ambient
-    vec3 finalAmbient = ambientColor * diffuseTexColor.rgb;
+vec3 CalcDirLight()
+{
+    vec3 lightDir = normalize(-dirLight.dir);
 
     // Diffuse
-    float diffuseAmount = max(0.0, dot(normalize(vertNormal), lightDir));
-    vec3 finalDiffuse = diffuseAmount * lightColor1 * diffuseTexColor.rgb;
+    float diffuseAmount = max(0.0, dot(normalizedVertNorm, lightDir));
+    vec3 finalDiffuse = diffuseAmount * dirLight.diffuseColor * diffuseTexColor.rgb;
 
     // Specular
-    vec3 viewDir = normalize(camPos - fragPos);
-    vec3 reflectDir = reflect(-lightDir, vertNormal);
+    vec3 reflectDir = reflect(-lightDir, normalizedVertNorm);
     float specularAmount = pow(max(dot(viewDir, reflectDir), 0.0), material.shininess);
-    vec3 finalSpecular = specularAmount * lightColor1 * texture(material.specular, vertUV0).rgb;
+    vec3 finalSpecular = specularAmount * dirLight.specularColor * specularTexColor.rgb;
 
-    // Emission
-    vec3 finalEmission = texture(material.emission, vertUV0).rgb;
+    return finalDiffuse + finalSpecular;
+}
 
-    fragColor = vec4(finalAmbient + finalDiffuse + finalSpecular + finalEmission, 1);
-} 
+vec3 CalcPointLight(PointLight pointLight)
+{
+    // Ignore unset lights
+    if (pointLight.constant == 0){
+        return vec3(0);
+    }
+
+    vec3 lightDir = normalize(pointLight.pos - fragPos);
+
+    // Diffuse
+    float diffuseAmount = max(0.0, dot(normalizedVertNorm, lightDir));
+    vec3 finalDiffuse = diffuseAmount * pointLight.diffuseColor * diffuseTexColor.rgb;
+
+    // Specular
+    vec3 reflectDir = reflect(-lightDir, normalizedVertNorm);
+    float specularAmount = pow(max(dot(viewDir, reflectDir), 0.0), material.shininess);
+    vec3 finalSpecular = specularAmount * pointLight.specularColor * specularTexColor.rgb;
+
+    // attenuation
+    float distToLight = length(pointLight.pos - fragPos);
+    float attenuation = 1.0 / (pointLight.constant + pointLight.linear * distToLight + pointLight.quadratic * (distToLight * distToLight));  
+
+    return (finalDiffuse + finalSpecular) * attenuation;
+}
+
+vec3 CalcSpotLight()
+{
+    return vec3(0);
+}
+
+void main()
+{
+    // Shared values
+    diffuseTexColor = texture(material.diffuse, vertUV0);
+    specularTexColor = texture(material.specular, vertUV0);
+    emissionTexColor = texture(material.emission, vertUV0);
+
+    normalizedVertNorm = normalize(vertNormal);
+    viewDir = normalize(camPos - fragPos);
+
+    // Light contributions
+    vec3 finalColor = CalcDirLight();
+
+    for (int i = 0; i < NUM_POINT_LIGHTS; i++)
+    {
+        finalColor += CalcPointLight(pointLights[i]);
+    }
+
+    finalColor += CalcSpotLight();
+
+    vec3 finalEmission = emissionTexColor.rgb;
+    vec3 finalAmbient = ambientColor * diffuseTexColor.rgb;
+
+    fragColor = vec4(finalColor + finalAmbient + finalEmission, 1);
+}
