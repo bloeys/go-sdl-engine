@@ -33,6 +33,7 @@ import (
 		- HDR
 		- Cascaded shadow mapping
 		- Skeletal animations
+	- Proper model loading (i.e. load model by reading all its meshes, textures, and so on together)
 	- Create VAO struct independent from VBO to support multi-VBO use cases (e.g. instancing)
 	- Renderer batching
 	- Scene graph

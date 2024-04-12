@@ -62,14 +62,11 @@ func NewMesh(name, modelPath string, postProcessFlags asig.PostProcess) (*Mesh, 
 			mesh.Buf.SetLayout(layoutToUse...)
 		} else {
 
-			// @NOTE: Require that all submeshes have the same vertex buffer layout
 			firstSubmeshLayout := mesh.Buf.GetLayout()
-			assert.T(len(firstSubmeshLayout) == len(layoutToUse), fmt.Sprintf("Vertex layout of submesh %d does not equal vertex layout of the first submesh. Original layout: %v; This layout: %v", i, firstSubmeshLayout, layoutToUse))
+			assert.T(len(firstSubmeshLayout) == len(layoutToUse), "Vertex layout of submesh '%d' of mesh '%s' at path '%s' does not equal vertex layout of the first submesh. Original layout: %v; This layout: %v", i, name, modelPath, firstSubmeshLayout, layoutToUse)
 
 			for i := 0; i < len(firstSubmeshLayout); i++ {
-				if firstSubmeshLayout[i].ElementType != layoutToUse[i].ElementType {
-					panic(fmt.Sprintf("Vertex layout of submesh %d does not equal vertex layout of the first submesh. Original layout: %v; This layout: %v", i, firstSubmeshLayout, layoutToUse))
-				}
+				assert.T(firstSubmeshLayout[i].ElementType == layoutToUse[i].ElementType, "Vertex layout of submesh '%d' of mesh '%s' at path '%s' does not equal vertex layout of the first submesh. Original layout: %v; This layout: %v", i, name, modelPath, firstSubmeshLayout, layoutToUse)
 			}
 		}
 
@@ -119,9 +116,9 @@ type arrToInterleave struct {
 
 func (a *arrToInterleave) get(i int) []float32 {
 
-	assert.T(len(a.V2s) == 0 || len(a.V3s) == 0, "One array should be set in arrToInterleave, but both arrays are set")
-	assert.T(len(a.V2s) == 0 || len(a.V4s) == 0, "One array should be set in arrToInterleave, but both arrays are set")
-	assert.T(len(a.V3s) == 0 || len(a.V4s) == 0, "One array should be set in arrToInterleave, but both arrays are set")
+	assert.T(len(a.V2s) == 0 || len(a.V3s) == 0, "One array should be set in arrToInterleave, but multiple arrays are set")
+	assert.T(len(a.V2s) == 0 || len(a.V4s) == 0, "One array should be set in arrToInterleave, but multiple arrays are set")
+	assert.T(len(a.V3s) == 0 || len(a.V4s) == 0, "One array should be set in arrToInterleave, but multiple arrays are set")
 
 	if len(a.V2s) > 0 {
 		return a.V2s[i].Data[:]
