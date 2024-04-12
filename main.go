@@ -34,7 +34,7 @@ import (
 		- Cascaded shadow mapping
 		- Skeletal animations
 	- Proper model loading (i.e. load model by reading all its meshes, textures, and so on together)
-	- Create VAO struct independent from VBO to support multi-VBO use cases (e.g. instancing)
+	- Create VAO struct independent from VBO to support multi-VBO use cases (e.g. instancing) ✅
 	- Renderer batching
 	- Scene graph
 	- Separate engine loop from rendering loop? or leave it to the user?
@@ -812,7 +812,7 @@ func (g *Game) DrawSkybox() {
 
 	gl.Disable(gl.CULL_FACE)
 	gl.DepthFunc(gl.LEQUAL)
-	skyboxMesh.Buf.Bind()
+	skyboxMesh.Vao.Bind()
 	skyboxMat.Bind()
 	gl.ActiveTexture(gl.TEXTURE0)
 	gl.BindTexture(gl.TEXTURE_CUBE_MAP, skyboxCmap.TexID)

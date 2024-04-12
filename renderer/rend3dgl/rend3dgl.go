@@ -18,7 +18,7 @@ type Rend3DGL struct {
 func (r3d *Rend3DGL) Draw(mesh *meshes.Mesh, trMat *gglm.TrMat, mat *materials.Material) {
 
 	if mesh != r3d.BoundMesh {
-		mesh.Buf.Bind()
+		mesh.Vao.Bind()
 		r3d.BoundMesh = mesh
 	}
 

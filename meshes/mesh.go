@@ -2,7 +2,6 @@ package meshes
 
 import (
 	"errors"
-	"fmt"
 
 	"github.com/bloeys/assimp-go/asig"
 	"github.com/bloeys/gglm/gglm"
@@ -18,7 +17,7 @@ type SubMesh struct {
 
 type Mesh struct {
 	Name      string
-	Buf       buffers.Buffer
+	Vao       buffers.VertexArray
 	SubMeshes []SubMesh
 }
 
@@ -36,13 +35,18 @@ func NewMesh(name, modelPath string, postProcessFlags asig.PostProcess) (*Mesh, 
 
 	mesh := &Mesh{
 		Name:      name,
-		Buf:       buffers.NewBuffer(),
+		Vao:       buffers.NewVertexArray(),
 		SubMeshes: make([]SubMesh, 0, 1),
 	}
+
+	vbo := buffers.NewVertexBuffer()
+	ibo := buffers.NewIndexBuffer()
 
 	// Initial sizes assuming one submesh that has vertex pos+normals+texCoords, and 3 indices per face
 	var vertexBufData []float32 = make([]float32, 0, len(scene.Meshes[0].Vertices)*3*3*2)
 	var indexBufData []uint32 = make([]uint32, 0, len(scene.Meshes[0].Faces)*3)
+
+	// fmt.Printf("\nMesh %s has %d meshe(s) with first mesh having %d vertices\n", name, len(scene.Meshes), len(scene.Meshes[0].Vertices))
 
 	for i := 0; i < len(scene.Meshes); i++ {
 
@@ -50,7 +54,6 @@ func NewMesh(name, modelPath string, postProcessFlags asig.PostProcess) (*Mesh, 
 
 		if len(sceneMesh.TexCoords[0]) == 0 {
 			sceneMesh.TexCoords[0] = make([]gglm.Vec3, len(sceneMesh.Vertices))
-			println("Zeroing tex coords for submesh", i)
 		}
 
 		layoutToUse := []buffers.Element{{ElementType: buffers.DataTypeVec3}, {ElementType: buffers.DataTypeVec3}, {ElementType: buffers.DataTypeVec2}}
@@ -59,10 +62,16 @@ func NewMesh(name, modelPath string, postProcessFlags asig.PostProcess) (*Mesh, 
 		}
 
 		if i == 0 {
-			mesh.Buf.SetLayout(layoutToUse...)
+			vbo.SetLayout(layoutToUse...)
 		} else {
 
-			firstSubmeshLayout := mesh.Buf.GetLayout()
+			// @TODO @NOTE: This requirement is because we are using one VAO+VBO for all
+			// the meshes and so the buffer must have one format.
+			//
+			// If we want to allow different layouts then we can simply create one vbo per layout and put
+			// meshes of the same layout in the same vbo, and we store the index of the vbo the mesh
+			// uses in the submesh struct.
+			firstSubmeshLayout := vbo.GetLayout()
 			assert.T(len(firstSubmeshLayout) == len(layoutToUse), "Vertex layout of submesh '%d' of mesh '%s' at path '%s' does not equal vertex layout of the first submesh. Original layout: %v; This layout: %v", i, name, modelPath, firstSubmeshLayout, layoutToUse)
 
 			for i := 0; i < len(firstSubmeshLayout); i++ {
@@ -79,7 +88,7 @@ func NewMesh(name, modelPath string, postProcessFlags asig.PostProcess) (*Mesh, 
 		mesh.SubMeshes = append(mesh.SubMeshes, SubMesh{
 
 			// Index of the vertex to start from (e.g. if index buffer says use vertex 5, and BaseVertex=3, the vertex used will be vertex 8)
-			BaseVertex: int32(len(vertexBufData)*4) / mesh.Buf.Stride,
+			BaseVertex: int32(len(vertexBufData)*4) / vbo.Stride,
 			// Which index (in the index buffer) to start from
 			BaseIndex: uint32(len(indexBufData)),
 			// How many indices in this submesh
@@ -90,9 +99,16 @@ func NewMesh(name, modelPath string, postProcessFlags asig.PostProcess) (*Mesh, 
 		indexBufData = append(indexBufData, indices...)
 	}
 
-	// fmt.Printf("!!! Vertex count: %d; Submeshes: %+v\n", len(vertexBufData)*4/int(mesh.Buf.Stride), mesh.SubMeshes)
-	mesh.Buf.SetData(vertexBufData)
-	mesh.Buf.SetIndexBufData(indexBufData)
+	vbo.SetData(vertexBufData, buffers.BufUsage_Static)
+	ibo.SetData(indexBufData)
+
+	mesh.Vao.AddVertexBuffer(vbo)
+	mesh.Vao.SetIndexBuffer(ibo)
+
+	// This is needed so that if you load meshes one after the other the
+	// following mesh doesn't attach its vbo/ibo to this vao
+	mesh.Vao.UnBind()
+
 	return mesh, nil
 }
 
@@ -170,7 +186,7 @@ func interleave(arrs ...arrToInterleave) []float32 {
 
 func flattenFaces(faces []asig.Face) []uint32 {
 
-	assert.T(len(faces[0].Indices) == 3, fmt.Sprintf("Face doesn't have 3 indices. Index count: %v\n", len(faces[0].Indices)))
+	assert.T(len(faces[0].Indices) == 3, "Face doesn't have 3 indices. Index count: %v\n", len(faces[0].Indices))
 
 	uints := make([]uint32, len(faces)*3)
 	for i := 0; i < len(faces); i++ {
