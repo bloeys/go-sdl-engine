@@ -39,6 +39,12 @@ func (w *Window) handleInputs() {
 	imguiCaptureMouse := imIo.WantCaptureMouse()
 	imguiCaptureKeyboard := imIo.WantCaptureKeyboard()
 
+	// These two are to fix a bug where state isn't cleared
+	// even after imgui captures the keyboard/mouse.
+	//
+	// For example, if player is moving due to key held and then imgui captures the keyboard,
+	// the player keeps moving even when the key is no longer pressed because the input system never
+	// receives the key up event.
 	if imguiCaptureMouse {
 		input.ClearMouseState()
 	}
