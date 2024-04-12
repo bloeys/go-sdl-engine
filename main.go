@@ -26,9 +26,10 @@ import (
 /*
 @TODO:
 	- Rendering:
-		- Phong lighting model
-		- Point lights
-		- Spotlights
+		- Phong lighting model ✅
+		- Directional lights ✅
+		- Point lights ✅
+		- Spotlights ✅
 		- HDR
 		- Cascaded shadow mapping
 		- Skeletal animations
@@ -62,11 +63,24 @@ type PointLight struct {
 }
 
 type SpotLight struct {
+	Pos           gglm.Vec3
 	Dir           gglm.Vec3
 	DiffuseColor  gglm.Vec3
 	SpecularColor gglm.Vec3
 	InnerCutoff   float32
 	OuterCutoff   float32
+}
+
+// SetCutoffs properly sets the cosine values of the cutoffs using the passed
+// degrees.
+//
+// The light has full intensity within the inner cutoff, falloff between
+// inner-outer cutoff, and zero light beyond the outer cutoff.
+//
+// The inner cuttoff degree must be *smaller* than the outer cutoff
+func (s *SpotLight) SetCutoffs(innerCutoffAngleDeg, outerCutoffAngleDeg float32) {
+	s.InnerCutoff = gglm.Cos32(innerCutoffAngleDeg * gglm.Deg2Rad)
+	s.OuterCutoff = gglm.Cos32(outerCutoffAngleDeg * gglm.Deg2Rad)
 }
 
 const (
@@ -146,6 +160,17 @@ var (
 			Constant:      1.0,
 			Linear:        0.09,
 			Quadratic:     0.032,
+		},
+	}
+	spotLights = [...]SpotLight{
+		{
+			Pos:           *gglm.NewVec3(0, 5, 0),
+			Dir:           *gglm.NewVec3(0, -1, 0),
+			DiffuseColor:  *gglm.NewVec3(0, 1, 1),
+			SpecularColor: *gglm.NewVec3(1, 1, 1),
+			// These must be cosine values
+			InnerCutoff: gglm.Cos32(15 * gglm.Deg2Rad),
+			OuterCutoff: gglm.Cos32(20 * gglm.Deg2Rad),
 		},
 	}
 )
@@ -456,6 +481,36 @@ func (g *Game) updateLights() {
 		containerMat.SetUnifFloat32(indexString+".quadratic", pl.Quadratic)
 		palleteMat.SetUnifFloat32(indexString+".quadratic", pl.Quadratic)
 	}
+
+	for i := 0; i < len(spotLights); i++ {
+
+		l := &spotLights[i]
+		indexString := "spotLights[" + strconv.Itoa(i) + "]"
+
+		whiteMat.SetUnifVec3(indexString+".pos", &l.Pos)
+		containerMat.SetUnifVec3(indexString+".pos", &l.Pos)
+		palleteMat.SetUnifVec3(indexString+".pos", &l.Pos)
+
+		whiteMat.SetUnifVec3(indexString+".dir", &l.Dir)
+		containerMat.SetUnifVec3(indexString+".dir", &l.Dir)
+		palleteMat.SetUnifVec3(indexString+".dir", &l.Dir)
+
+		whiteMat.SetUnifVec3(indexString+".diffuseColor", &l.DiffuseColor)
+		containerMat.SetUnifVec3(indexString+".diffuseColor", &l.DiffuseColor)
+		palleteMat.SetUnifVec3(indexString+".diffuseColor", &l.DiffuseColor)
+
+		whiteMat.SetUnifVec3(indexString+".specularColor", &l.SpecularColor)
+		containerMat.SetUnifVec3(indexString+".specularColor", &l.SpecularColor)
+		palleteMat.SetUnifVec3(indexString+".specularColor", &l.SpecularColor)
+
+		whiteMat.SetUnifFloat32(indexString+".innerCutoff", l.InnerCutoff)
+		containerMat.SetUnifFloat32(indexString+".innerCutoff", l.InnerCutoff)
+		palleteMat.SetUnifFloat32(indexString+".innerCutoff", l.InnerCutoff)
+
+		whiteMat.SetUnifFloat32(indexString+".outerCutoff", l.OuterCutoff)
+		containerMat.SetUnifFloat32(indexString+".outerCutoff", l.OuterCutoff)
+		palleteMat.SetUnifFloat32(indexString+".outerCutoff", l.OuterCutoff)
+	}
 }
 
 func (g *Game) Update() {
@@ -544,35 +599,91 @@ func (g *Game) showDebugWindow() {
 	imgui.Spacing()
 
 	// Point lights
-	imgui.Text("Point Lights")
-
-	if imgui.BeginListBoxV("", imgui.Vec2{Y: 200}) {
+	if imgui.BeginListBoxV("Point Lights", imgui.Vec2{Y: 200}) {
 
 		for i := 0; i < len(pointLights); i++ {
 
 			pl := &pointLights[i]
-			indexString := strconv.Itoa(i)
+			indexNumString := strconv.Itoa(i)
 
-			if !imgui.TreeNodeExStrV("Light "+indexString, imgui.TreeNodeFlagsSpanAvailWidth) {
+			if !imgui.TreeNodeExStrV("Point Light "+indexNumString, imgui.TreeNodeFlagsSpanAvailWidth) {
 				continue
 			}
 
+			indexString := "pointLights[" + indexNumString + "]"
+
 			if imgui.DragFloat3("Pos", &pl.Pos.Data) {
-				whiteMat.SetUnifVec3("pointLights["+indexString+"].pos", &pl.Pos)
-				containerMat.SetUnifVec3("pointLights["+indexString+"].pos", &pl.Pos)
-				palleteMat.SetUnifVec3("pointLights["+indexString+"].pos", &pl.Pos)
+				whiteMat.SetUnifVec3(indexString+".pos", &pl.Pos)
+				containerMat.SetUnifVec3(indexString+".pos", &pl.Pos)
+				palleteMat.SetUnifVec3(indexString+".pos", &pl.Pos)
 			}
 
 			if imgui.DragFloat3("Diffuse Color", &pl.DiffuseColor.Data) {
-				whiteMat.SetUnifVec3("pointLights["+indexString+"].diffuseColor", &pl.DiffuseColor)
-				containerMat.SetUnifVec3("pointLights["+indexString+"].diffuseColor", &pl.DiffuseColor)
-				palleteMat.SetUnifVec3("pointLights["+indexString+"].diffuseColor", &pl.DiffuseColor)
+				whiteMat.SetUnifVec3(indexString+".diffuseColor", &pl.DiffuseColor)
+				containerMat.SetUnifVec3(indexString+".diffuseColor", &pl.DiffuseColor)
+				palleteMat.SetUnifVec3(indexString+".diffuseColor", &pl.DiffuseColor)
 			}
 
 			if imgui.DragFloat3("Specular Color", &pl.SpecularColor.Data) {
-				whiteMat.SetUnifVec3("pointLights["+indexString+"].specularColor", &pl.SpecularColor)
-				containerMat.SetUnifVec3("pointLights["+indexString+"].specularColor", &pl.SpecularColor)
-				palleteMat.SetUnifVec3("pointLights["+indexString+"].specularColor", &pl.SpecularColor)
+				whiteMat.SetUnifVec3(indexString+".specularColor", &pl.SpecularColor)
+				containerMat.SetUnifVec3(indexString+".specularColor", &pl.SpecularColor)
+				palleteMat.SetUnifVec3(indexString+".specularColor", &pl.SpecularColor)
+			}
+
+			imgui.TreePop()
+		}
+
+		imgui.EndListBox()
+	}
+
+	// Spot lights
+	if imgui.BeginListBoxV("Spot Lights", imgui.Vec2{Y: 200}) {
+
+		for i := 0; i < len(spotLights); i++ {
+
+			l := &spotLights[i]
+			indexNumString := strconv.Itoa(i)
+
+			if !imgui.TreeNodeExStrV("Spot Light "+indexNumString, imgui.TreeNodeFlagsSpanAvailWidth) {
+				continue
+			}
+
+			indexString := "spotLights[" + indexNumString + "]"
+
+			if imgui.DragFloat3("Pos", &l.Pos.Data) {
+				whiteMat.SetUnifVec3(indexString+".pos", &l.Pos)
+				containerMat.SetUnifVec3(indexString+".pos", &l.Pos)
+				palleteMat.SetUnifVec3(indexString+".pos", &l.Pos)
+			}
+
+			if imgui.DragFloat3("Dir", &l.Dir.Data) {
+				whiteMat.SetUnifVec3(indexString+".dir", &l.Dir)
+				containerMat.SetUnifVec3(indexString+".dir", &l.Dir)
+				palleteMat.SetUnifVec3(indexString+".dir", &l.Dir)
+			}
+
+			if imgui.DragFloat3("Diffuse Color", &l.DiffuseColor.Data) {
+				whiteMat.SetUnifVec3(indexString+".diffuseColor", &l.DiffuseColor)
+				containerMat.SetUnifVec3(indexString+".diffuseColor", &l.DiffuseColor)
+				palleteMat.SetUnifVec3(indexString+".diffuseColor", &l.DiffuseColor)
+			}
+
+			if imgui.DragFloat3("Specular Color", &l.SpecularColor.Data) {
+				whiteMat.SetUnifVec3(indexString+".specularColor", &l.SpecularColor)
+				containerMat.SetUnifVec3(indexString+".specularColor", &l.SpecularColor)
+				palleteMat.SetUnifVec3(indexString+".specularColor", &l.SpecularColor)
+			}
+
+			if imgui.DragFloat("Inner Cutoff", &l.InnerCutoff) {
+				whiteMat.SetUnifFloat32(indexString+".innerCutoff", l.InnerCutoff)
+				containerMat.SetUnifFloat32(indexString+".innerCutoff", l.InnerCutoff)
+				palleteMat.SetUnifFloat32(indexString+".innerCutoff", l.InnerCutoff)
+			}
+
+			if imgui.DragFloat("Outer Cutoff", &l.OuterCutoff) {
+				whiteMat.SetUnifFloat32(indexString+".outerCutoff", l.OuterCutoff)
+				containerMat.SetUnifFloat32(indexString+".outerCutoff", l.OuterCutoff)
+				palleteMat.SetUnifFloat32(indexString+".outerCutoff", l.OuterCutoff)
 			}
 
 			imgui.TreePop()

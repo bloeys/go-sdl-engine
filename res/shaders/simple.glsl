@@ -64,6 +64,18 @@ struct PointLight {
 #define NUM_POINT_LIGHTS 16
 uniform PointLight pointLights[NUM_POINT_LIGHTS];
 
+struct SpotLight {
+    vec3 pos;
+    vec3 dir;
+    vec3 diffuseColor;
+    vec3 specularColor;
+    float innerCutoff;
+    float outerCutoff;
+};
+
+#define NUM_SPOT_LIGHTS 4
+uniform SpotLight spotLights[NUM_SPOT_LIGHTS];
+
 uniform vec3 camPos;
 uniform vec3 ambientColor = vec3(0.2, 0.2, 0.2);
 
@@ -122,9 +134,33 @@ vec3 CalcPointLight(PointLight pointLight)
     return (finalDiffuse + finalSpecular) * attenuation;
 }
 
-vec3 CalcSpotLight()
+vec3 CalcSpotLight(SpotLight light)
 {
-    return vec3(0);
+    if (light.innerCutoff == 0)
+        return vec3(0);
+
+    vec3 fragToLightDir = normalize(light.pos - fragPos);
+
+    // Spot light cone with full intensity within inner cutoff,
+    // and falloff between inner-outer cutoffs, and zero
+    // light after outer cutoff
+    float theta = dot(fragToLightDir, normalize(-light.dir));
+    float epsilon = (light.innerCutoff - light.outerCutoff);
+    float intensity = clamp((theta - light.outerCutoff) / epsilon, 0.0, 1.0);
+
+    if (intensity == 0)
+        return vec3(0);
+
+    // Diffuse
+    float diffuseAmount = max(0.0, dot(normalizedVertNorm, fragToLightDir));
+    vec3 finalDiffuse = diffuseAmount * light.diffuseColor * diffuseTexColor.rgb;
+
+    // Specular
+    vec3 reflectDir = reflect(-fragToLightDir, normalizedVertNorm);
+    float specularAmount = pow(max(dot(viewDir, reflectDir), 0.0), material.shininess);
+    vec3 finalSpecular = specularAmount * light.specularColor * specularTexColor.rgb;
+
+    return (finalDiffuse + finalSpecular) * intensity;
 }
 
 void main()
@@ -145,7 +181,10 @@ void main()
         finalColor += CalcPointLight(pointLights[i]);
     }
 
-    finalColor += CalcSpotLight();
+    for (int i = 0; i < NUM_SPOT_LIGHTS; i++)
+    {
+        finalColor += CalcSpotLight(spotLights[i]);
+    }
 
     vec3 finalEmission = emissionTexColor.rgb;
     vec3 finalAmbient = ambientColor * diffuseTexColor.rgb;
