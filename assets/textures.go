@@ -45,7 +45,7 @@ type TextureLoadOptions struct {
 	WriteToCache     bool
 	GenMipMaps       bool
 	KeepPixelsInMem  bool
-	TextureIsSrgba   bool
+	NoSrgba          bool
 }
 
 type Cubemap struct {
@@ -103,9 +103,9 @@ func LoadTexturePNG(file string, loadOptions *TextureLoadOptions) (Texture, erro
 	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
 
 	// load and generate the texture
-	internalFormat := int32(gl.RGBA8)
-	if loadOptions.TextureIsSrgba {
-		internalFormat = gl.SRGB_ALPHA
+	internalFormat := int32(gl.SRGB_ALPHA)
+	if loadOptions.NoSrgba {
+		internalFormat = gl.RGBA8
 	}
 
 	gl.TexImage2D(gl.TEXTURE_2D, 0, internalFormat, tex.Width, tex.Height, 0, gl.RGBA, gl.UNSIGNED_BYTE, unsafe.Pointer(&tex.Pixels[0]))
@@ -151,9 +151,9 @@ func LoadTextureInMemPngImg(img image.Image, loadOptions *TextureLoadOptions) (T
 	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
 
 	// load and generate the texture
-	internalFormat := int32(gl.RGBA8)
-	if loadOptions.TextureIsSrgba {
-		internalFormat = gl.SRGB_ALPHA
+	internalFormat := int32(gl.SRGB_ALPHA)
+	if loadOptions.NoSrgba {
+		internalFormat = gl.RGBA8
 	}
 
 	gl.TexImage2D(gl.TEXTURE_2D, 0, internalFormat, tex.Width, tex.Height, 0, gl.RGBA, gl.UNSIGNED_BYTE, unsafe.Pointer(&tex.Pixels[0]))
@@ -216,9 +216,9 @@ func LoadTextureJpeg(file string, loadOptions *TextureLoadOptions) (Texture, err
 	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
 
 	// load and generate the texture
-	internalFormat := int32(gl.RGBA8)
-	if loadOptions.TextureIsSrgba {
-		internalFormat = gl.SRGB_ALPHA
+	internalFormat := int32(gl.SRGB_ALPHA)
+	if loadOptions.NoSrgba {
+		internalFormat = gl.RGBA8
 	}
 
 	gl.TexImage2D(gl.TEXTURE_2D, 0, internalFormat, tex.Width, tex.Height, 0, gl.RGBA, gl.UNSIGNED_BYTE, unsafe.Pointer(&tex.Pixels[0]))
@@ -288,9 +288,9 @@ func LoadCubemapTextures(rightTex, leftTex, topTex, botTex, frontTex, backTex st
 		height := int32(nrgbaImg.Bounds().Dy())
 		width := int32(nrgbaImg.Bounds().Dx())
 
-		internalFormat := int32(gl.RGBA8)
-		if loadOptions.TextureIsSrgba {
-			internalFormat = gl.SRGB_ALPHA
+		internalFormat := int32(gl.SRGB_ALPHA)
+		if loadOptions.NoSrgba {
+			internalFormat = gl.RGBA8
 		}
 
 		gl.TexImage2D(uint32(gl.TEXTURE_CUBE_MAP_POSITIVE_X)+i, 0, internalFormat, int32(width), int32(height), 0, gl.RGBA, gl.UNSIGNED_BYTE, unsafe.Pointer(&nrgbaImg.Pix[0]))

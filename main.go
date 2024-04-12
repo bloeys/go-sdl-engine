@@ -26,7 +26,7 @@ import (
 /*
 @TODO:
 	- Rendering:
-		- Phong lighting model ✅
+		- Blinn-Phong lighting model ✅
 		- Directional lights ✅
 		- Point lights ✅
 		- Spotlights ✅
@@ -350,27 +350,27 @@ func (g *Game) Init() {
 	}
 
 	//Load textures
-	whiteTex, err := assets.LoadTexturePNG("./res/textures/white.png", &assets.TextureLoadOptions{TextureIsSrgba: true})
+	whiteTex, err := assets.LoadTexturePNG("./res/textures/white.png", &assets.TextureLoadOptions{})
 	if err != nil {
 		logging.ErrLog.Fatalln("Failed to load texture. Err: ", err)
 	}
 
-	blackTex, err := assets.LoadTexturePNG("./res/textures/black.png", &assets.TextureLoadOptions{TextureIsSrgba: true})
+	blackTex, err := assets.LoadTexturePNG("./res/textures/black.png", &assets.TextureLoadOptions{})
 	if err != nil {
 		logging.ErrLog.Fatalln("Failed to load texture. Err: ", err)
 	}
 
-	containerDiffuseTex, err := assets.LoadTexturePNG("./res/textures/container-diffuse.png", &assets.TextureLoadOptions{TextureIsSrgba: true})
+	containerDiffuseTex, err := assets.LoadTexturePNG("./res/textures/container-diffuse.png", &assets.TextureLoadOptions{})
 	if err != nil {
 		logging.ErrLog.Fatalln("Failed to load texture. Err: ", err)
 	}
 
-	containerSpecularTex, err := assets.LoadTexturePNG("./res/textures/container-specular.png", &assets.TextureLoadOptions{TextureIsSrgba: true})
+	containerSpecularTex, err := assets.LoadTexturePNG("./res/textures/container-specular.png", &assets.TextureLoadOptions{})
 	if err != nil {
 		logging.ErrLog.Fatalln("Failed to load texture. Err: ", err)
 	}
 
-	palleteTex, err := assets.LoadTexturePNG("./res/textures/pallete-endesga-64-1x.png", &assets.TextureLoadOptions{TextureIsSrgba: true})
+	palleteTex, err := assets.LoadTexturePNG("./res/textures/pallete-endesga-64-1x.png", &assets.TextureLoadOptions{})
 	if err != nil {
 		logging.ErrLog.Fatalln("Failed to load texture. Err: ", err)
 	}
@@ -379,7 +379,7 @@ func (g *Game) Init() {
 		"./res/textures/sb-right.jpg", "./res/textures/sb-left.jpg",
 		"./res/textures/sb-top.jpg", "./res/textures/sb-bottom.jpg",
 		"./res/textures/sb-front.jpg", "./res/textures/sb-back.jpg",
-		&assets.TextureLoadOptions{TextureIsSrgba: true},
+		&assets.TextureLoadOptions{},
 	)
 	if err != nil {
 		logging.ErrLog.Fatalln("Failed to load cubemap. Err: ", err)
