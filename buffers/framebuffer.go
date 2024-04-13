@@ -33,6 +33,7 @@ const (
 	FramebufferAttachmentDataFormat_R32Int
 	FramebufferAttachmentDataFormat_RGBA8
 	FramebufferAttachmentDataFormat_SRGBA
+	FramebufferAttachmentDataFormat_DepthF32
 	FramebufferAttachmentDataFormat_Depth24Stencil8
 )
 
@@ -43,7 +44,8 @@ func (f FramebufferAttachmentDataFormat) IsColorFormat() bool {
 }
 
 func (f FramebufferAttachmentDataFormat) IsDepthFormat() bool {
-	return f == FramebufferAttachmentDataFormat_Depth24Stencil8
+	return f == FramebufferAttachmentDataFormat_Depth24Stencil8 ||
+		f == FramebufferAttachmentDataFormat_DepthF32
 }
 
 func (f FramebufferAttachmentDataFormat) GlInternalFormat() int32 {
@@ -55,6 +57,8 @@ func (f FramebufferAttachmentDataFormat) GlInternalFormat() int32 {
 		return gl.RGB8
 	case FramebufferAttachmentDataFormat_SRGBA:
 		return gl.SRGB_ALPHA
+	case FramebufferAttachmentDataFormat_DepthF32:
+		return gl.DEPTH_COMPONENT
 	case FramebufferAttachmentDataFormat_Depth24Stencil8:
 		return gl.DEPTH24_STENCIL8
 	default:
@@ -74,6 +78,9 @@ func (f FramebufferAttachmentDataFormat) GlFormat() uint32 {
 	case FramebufferAttachmentDataFormat_SRGBA:
 		return gl.RGBA
 
+	case FramebufferAttachmentDataFormat_DepthF32:
+		return gl.DEPTH_COMPONENT
+
 	case FramebufferAttachmentDataFormat_Depth24Stencil8:
 		return gl.DEPTH_STENCIL
 
@@ -91,6 +98,7 @@ type FramebufferAttachment struct {
 
 type Framebuffer struct {
 	Id                    uint32
+	ClearFlags            uint32
 	Attachments           []FramebufferAttachment
 	ColorAttachmentsCount uint32
 	Width                 uint32
@@ -104,6 +112,13 @@ func (fbo *Framebuffer) Bind() {
 func (fbo *Framebuffer) BindWithViewport() {
 	gl.BindFramebuffer(gl.FRAMEBUFFER, fbo.Id)
 	gl.Viewport(0, 0, int32(fbo.Width), int32(fbo.Height))
+}
+
+// Clear calls gl.Clear with the fob's clear flags.
+// Note that the fbo must be complete and bound.
+// Calling this without a bound fbo will clear something else, like your screen.
+func (fbo *Framebuffer) Clear() {
+	gl.Clear(fbo.ClearFlags)
 }
 
 func (fbo *Framebuffer) UnBind() {
@@ -201,6 +216,91 @@ func (fbo *Framebuffer) NewColorAttachment(
 
 	fbo.UnBind()
 	fbo.ColorAttachmentsCount++
+	fbo.ClearFlags |= gl.COLOR_BUFFER_BIT
+	fbo.Attachments = append(fbo.Attachments, a)
+}
+
+// SetNoColorBuffer sets the read and draw buffers of this fbo to 'NONE',
+// which tells the graphics driver that we don't want a color buffer for this fbo.
+//
+// This is required because normally an fbo must have a color buffer to be considered complete, but by
+// doing this we get marked as complete even without one.
+//
+// Usually used when you only care about some other buffer, like a depth buffer.
+func (fbo *Framebuffer) SetNoColorBuffer() {
+
+	if fbo.HasColorAttachment() {
+		logging.ErrLog.Fatalf("failed SetNoColorBuffer because framebuffer already has a color attachment\n")
+	}
+
+	fbo.Bind()
+	gl.DrawBuffer(gl.NONE)
+	gl.ReadBuffer(gl.NONE)
+	fbo.UnBind()
+}
+
+func (fbo *Framebuffer) NewDepthAttachment(
+	attachType FramebufferAttachmentType,
+	attachFormat FramebufferAttachmentDataFormat,
+) {
+
+	if fbo.HasDepthAttachment() {
+		logging.ErrLog.Fatalf("failed creating depth attachment for framebuffer because a depth attachment already exists\n")
+	}
+
+	if !attachType.IsValid() {
+		logging.ErrLog.Fatalf("failed creating depth attachment for framebuffer due to unknown attachment type. Type=%d\n", attachType)
+	}
+
+	if !attachFormat.IsDepthFormat() {
+		logging.ErrLog.Fatalf("failed creating depth attachment for framebuffer due to attachment data format not being a valid depth-stencil type. Data format=%d\n", attachFormat)
+	}
+
+	a := FramebufferAttachment{
+		Type:   attachType,
+		Format: attachFormat,
+	}
+
+	fbo.Bind()
+
+	if attachType == FramebufferAttachmentType_Texture {
+
+		// Create texture
+		gl.GenTextures(1, &a.Id)
+		if a.Id == 0 {
+			logging.ErrLog.Fatalf("failed to generate texture for framebuffer. GlError=%d\n", gl.GetError())
+		}
+
+		gl.BindTexture(gl.TEXTURE_2D, a.Id)
+		gl.TexImage2D(gl.TEXTURE_2D, 0, attachFormat.GlInternalFormat(), int32(fbo.Width), int32(fbo.Height), 0, attachFormat.GlFormat(), gl.FLOAT, nil)
+
+		gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST)
+		gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST)
+		gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT)
+		gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT)
+		gl.BindTexture(gl.TEXTURE_2D, 0)
+
+		// Attach to fbo
+		gl.FramebufferTexture2D(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.TEXTURE_2D, a.Id, 0)
+
+	} else if attachType == FramebufferAttachmentType_Renderbuffer {
+
+		// Create rbo
+		gl.GenRenderbuffers(1, &a.Id)
+		if a.Id == 0 {
+			logging.ErrLog.Fatalf("failed to generate render buffer for framebuffer. GlError=%d\n", gl.GetError())
+		}
+
+		gl.BindRenderbuffer(gl.RENDERBUFFER, a.Id)
+		gl.RenderbufferStorage(gl.RENDERBUFFER, uint32(attachFormat.GlInternalFormat()), int32(fbo.Width), int32(fbo.Height))
+		gl.BindRenderbuffer(gl.RENDERBUFFER, 0)
+
+		// Attach to fbo
+		gl.FramebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, a.Id)
+	}
+
+	fbo.UnBind()
+	fbo.ClearFlags |= gl.DEPTH_BUFFER_BIT
 	fbo.Attachments = append(fbo.Attachments, a)
 }
 
@@ -263,6 +363,7 @@ func (fbo *Framebuffer) NewDepthStencilAttachment(
 	}
 
 	fbo.UnBind()
+	fbo.ClearFlags |= gl.DEPTH_BUFFER_BIT | gl.STENCIL_BUFFER_BIT
 	fbo.Attachments = append(fbo.Attachments, a)
 }
 

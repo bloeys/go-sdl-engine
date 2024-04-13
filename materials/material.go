@@ -8,6 +8,16 @@ import (
 	"github.com/go-gl/gl/v4.1-core/gl"
 )
 
+type TextureSlot uint32
+
+const (
+	TextureSlot_Diffuse  TextureSlot = 0
+	TextureSlot_Specular TextureSlot = 1
+	TextureSlot_Normal   TextureSlot = 2
+	TextureSlot_Emission TextureSlot = 3
+	TextureSlot_Cubemap  TextureSlot = 10
+)
+
 type Material struct {
 	Name       string
 	ShaderProg shaders.ShaderProgram
@@ -21,41 +31,45 @@ type Material struct {
 	NormalTex   uint32
 	EmissionTex uint32
 
+	// Shininess of specular highlights
 	Shininess float32
+
+	// Cubemap
+	CubemapTex uint32
 }
 
 func (m *Material) Bind() {
 
 	gl.UseProgram(m.ShaderProg.ID)
 
-	gl.ActiveTexture(gl.TEXTURE0)
-	gl.BindTexture(gl.TEXTURE_2D, m.DiffuseTex)
+	if m.DiffuseTex != 0 {
+		gl.ActiveTexture(uint32(gl.TEXTURE0 + TextureSlot_Diffuse))
+		gl.BindTexture(gl.TEXTURE_2D, m.DiffuseTex)
+	}
 
-	gl.ActiveTexture(gl.TEXTURE1)
-	gl.BindTexture(gl.TEXTURE_2D, m.SpecularTex)
+	if m.SpecularTex != 0 {
+		gl.ActiveTexture(uint32(gl.TEXTURE0 + TextureSlot_Specular))
+		gl.BindTexture(gl.TEXTURE_2D, m.SpecularTex)
+	}
 
-	gl.ActiveTexture(gl.TEXTURE2)
-	gl.BindTexture(gl.TEXTURE_2D, m.NormalTex)
+	if m.NormalTex != 0 {
+		gl.ActiveTexture(uint32(gl.TEXTURE0 + TextureSlot_Normal))
+		gl.BindTexture(gl.TEXTURE_2D, m.NormalTex)
+	}
 
-	gl.ActiveTexture(gl.TEXTURE3)
-	gl.BindTexture(gl.TEXTURE_2D, m.EmissionTex)
+	if m.EmissionTex != 0 {
+		gl.ActiveTexture(uint32(gl.TEXTURE0 + TextureSlot_Emission))
+		gl.BindTexture(gl.TEXTURE_2D, m.EmissionTex)
+	}
+
+	if m.CubemapTex != 0 {
+		gl.ActiveTexture(uint32(gl.TEXTURE0 + TextureSlot_Cubemap))
+		gl.BindTexture(gl.TEXTURE_CUBE_MAP, m.CubemapTex)
+	}
 }
 
 func (m *Material) UnBind() {
 	gl.UseProgram(0)
-
-	//TODO: Should we unbind textures here? Are these two lines needed?
-	// gl.ActiveTexture(gl.TEXTURE0)
-	// gl.BindTexture(gl.TEXTURE_2D, 0)
-
-	// gl.ActiveTexture(gl.TEXTURE1)
-	// gl.BindTexture(gl.TEXTURE_2D, 0)
-
-	// gl.ActiveTexture(gl.TEXTURE2)
-	// gl.BindTexture(gl.TEXTURE_2D, 0)
-
-	// gl.ActiveTexture(gl.TEXTURE3)
-	// gl.BindTexture(gl.TEXTURE_2D, 0)
 }
 
 func (m *Material) GetAttribLoc(attribName string) int32 {
@@ -132,7 +146,7 @@ func NewMaterial(matName, shaderPath string) *Material {
 
 	shdrProg, err := shaders.LoadAndCompileCombinedShader(shaderPath)
 	if err != nil {
-		logging.ErrLog.Fatalln("Failed to create new material. Err: ", err)
+		logging.ErrLog.Fatalf("Failed to create new material '%s'. Err: %s\n", matName, err.Error())
 	}
 
 	return &Material{Name: matName, ShaderProg: shdrProg, UnifLocs: make(map[string]int32), AttribLocs: make(map[string]int32)}
@@ -142,7 +156,7 @@ func NewMaterialSrc(matName string, shaderSrc []byte) *Material {
 
 	shdrProg, err := shaders.LoadAndCompileCombinedShaderSrc(shaderSrc)
 	if err != nil {
-		logging.ErrLog.Fatalln("Failed to create new material. Err: ", err)
+		logging.ErrLog.Fatalf("Failed to create new material '%s'. Err: %s\n", matName, err.Error())
 	}
 
 	return &Material{Name: matName, ShaderProg: shdrProg, UnifLocs: make(map[string]int32), AttribLocs: make(map[string]int32)}

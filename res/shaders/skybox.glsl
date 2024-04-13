@@ -8,13 +8,12 @@ layout(location=3) in vec3 vertColorIn;
 
 out vec3 vertUV0;
 
-uniform mat4 viewMat;
-uniform mat4 projMat;
+uniform mat4 projViewMat;
 
 void main()
 {
     vertUV0 = vec3(vertPosIn.x, vertPosIn.y, -vertPosIn.z);
-    vec4 pos = projMat * viewMat * vec4(vertPosIn, 1.0);
+    vec4 pos = projViewMat * vec4(vertPosIn, 1.0);
     gl_Position = pos.xyww;
 }
 

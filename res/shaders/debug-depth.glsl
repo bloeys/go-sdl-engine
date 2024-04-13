@@ -13,17 +13,18 @@ out vec3 fragPos;
 
 //MVP = Model View Projection
 uniform mat4 modelMat;
-uniform mat4 viewMat;
-uniform mat4 projMat;
+uniform mat4 projViewMat;
 
 void main()
 {
     vertNormal = mat3(transpose(inverse(modelMat))) * vertNormalIn;
     vertUV0 = vertUV0In;
     vertColor = vertColorIn;
-    fragPos = vec3(modelMat * vec4(vertPosIn, 1.0));
 
-    gl_Position = projMat * viewMat * modelMat * vec4(vertPosIn, 1.0);
+    vec4 modelVert = modelMat * vec4(vertPosIn, 1);
+    fragPos = modelVert.xyz;
+
+    gl_Position = projViewMat * modelVert;
 }
 
 //shader:fragment
