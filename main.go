@@ -8,6 +8,7 @@ import (
 	imgui "github.com/AllenDang/cimgui-go"
 	"github.com/bloeys/gglm/gglm"
 	"github.com/bloeys/nmage/assets"
+	"github.com/bloeys/nmage/buffers"
 	"github.com/bloeys/nmage/camera"
 	"github.com/bloeys/nmage/engine"
 	"github.com/bloeys/nmage/entity"
@@ -99,6 +100,14 @@ var (
 	yaw   float32 = -1.5
 	cam   *camera.Camera
 
+	renderToFbo       = true
+	fboRenderDirectly = true
+	fboScale          = gglm.NewVec2(0.25, 0.25)
+	fboOffset         = gglm.NewVec2(0.75, -0.75)
+	fbo               buffers.Framebuffer
+
+	screenQuadMat *materials.Material
+	unlitMat      *materials.Material
 	whiteMat      *materials.Material
 	containerMat  *materials.Material
 	palleteMat    *materials.Material
@@ -386,6 +395,15 @@ func (g *Game) Init() {
 	}
 
 	// Create materials and assign any unused texture slots to black
+	screenQuadMat = materials.NewMaterial("Screen Quad Mat", "./res/shaders/screen-quad.glsl")
+	screenQuadMat.SetUnifVec2("scale", fboScale)
+	screenQuadMat.SetUnifVec2("offset", fboOffset)
+	screenQuadMat.SetUnifInt32("material.diffuse", 0)
+
+	unlitMat = materials.NewMaterial("Unlit mat", "./res/shaders/simple-unlit.glsl")
+	unlitMat.SetUnifInt32("material.diffuse", 0)
+	unlitMat.SetUnifMat4("projMat", &cam.ProjMat)
+
 	whiteMat = materials.NewMaterial("White mat", "./res/shaders/simple.glsl")
 	whiteMat.Shininess = 64
 	whiteMat.DiffuseTex = whiteTex.TexID
@@ -449,6 +467,28 @@ func (g *Game) Init() {
 
 	g.updateLights()
 	updateViewMat()
+
+	g.initFbo()
+}
+
+func (g *Game) initFbo() {
+
+	fbWidth, fbHeight := g.Win.SDLWin.GLGetDrawableSize()
+	if fbWidth <= 0 || fbHeight <= 0 {
+		panic("what?")
+	}
+
+	fbo = buffers.NewFramebuffer(uint32(fbWidth), uint32(fbHeight))
+
+	fbo.NewColorAttachment(
+		buffers.FramebufferAttachmentType_Texture,
+		buffers.FramebufferAttachmentDataFormat_SRGBA,
+	)
+
+	fbo.NewDepthStencilAttachment(
+		buffers.FramebufferAttachmentType_Renderbuffer,
+		buffers.FramebufferAttachmentDataFormat_Depth24Stencil8,
+	)
 }
 
 func (g *Game) updateLights() {
@@ -693,6 +733,20 @@ func (g *Game) showDebugWindow() {
 		imgui.EndListBox()
 	}
 
+	// Fbo
+	imgui.Text("Framebuffer")
+
+	imgui.Checkbox("Render to FBO", &renderToFbo)
+	imgui.Checkbox("Render Directly", &fboRenderDirectly)
+
+	if imgui.DragFloat2("Scale", &fboScale.Data) {
+		screenQuadMat.SetUnifVec2("scale", fboScale)
+	}
+
+	if imgui.DragFloat2("Offset", &fboOffset.Data) {
+		screenQuadMat.SetUnifVec2("offset", fboOffset)
+	}
+
 	// Other
 	imgui.Text("Other Settings")
 
@@ -762,6 +816,11 @@ func (g *Game) updateCameraPos() {
 
 func (g *Game) Render() {
 
+	if renderToFbo {
+		fbo.Bind()
+		gl.Clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT | gl.STENCIL_BUFFER_BIT)
+	}
+
 	tempModelMatrix := cubeModelMat.Clone()
 
 	whiteMat.SetUnifVec3("camPos", &cam.Pos)
@@ -806,6 +865,21 @@ func (g *Game) Render() {
 	if drawSkybox {
 		g.DrawSkybox()
 	}
+
+	if renderToFbo {
+
+		fbo.UnBind()
+
+		if fboRenderDirectly {
+			renderToFbo = false
+			g.Render()
+			renderToFbo = true
+		}
+
+		screenQuadMat.DiffuseTex = fbo.Attachments[0].Id
+		screenQuadMat.Bind()
+		gl.DrawArrays(gl.TRIANGLES, 0, 6)
+	}
 }
 
 func (g *Game) DrawSkybox() {
@@ -845,6 +919,7 @@ func (g *Game) DeInit() {
 
 func updateViewMat() {
 	cam.Update()
+	unlitMat.SetUnifMat4("viewMat", &cam.ViewMat)
 	whiteMat.SetUnifMat4("viewMat", &cam.ViewMat)
 	containerMat.SetUnifMat4("viewMat", &cam.ViewMat)
 	palleteMat.SetUnifMat4("viewMat", &cam.ViewMat)
