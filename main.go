@@ -50,6 +50,29 @@ type DirLight struct {
 	SpecularColor gglm.Vec3
 }
 
+var (
+	dSize float32 = 50
+	dNear float32 = 1
+	dFar  float32 = 50
+	dPos          = gglm.NewVec3(0, 10, 0)
+)
+
+func (d *DirLight) GetProjViewMat() gglm.Mat4 {
+
+	// Some arbitrary position for the directional light
+	pos := dPos //gglm.NewVec3(0, 10, 0)
+
+	size := dSize     //float32(50)
+	nearClip := dNear //float32(1)
+	farClip := dFar   //float32(50)
+
+	projMat := gglm.Ortho(-size, size, -size, size, nearClip, farClip).Mat4
+	// viewMat := gglm.LookAtRH(pos, gglm.NewVec3(0, 0, 0), gglm.NewVec3(0, 1, 0)).Mat4
+	viewMat := gglm.LookAtRH(pos, pos.Clone().Add(d.Dir.Clone().Scale(10)), gglm.NewVec3(0, 1, 0)).Mat4
+
+	return *projMat.Mul(&viewMat)
+}
+
 // Check https://wiki.ogre3d.org/tiki-index.php?page=-Point+Light+Attenuation for values
 type PointLight struct {
 	Pos           gglm.Vec3
@@ -99,13 +122,16 @@ var (
 	yaw   float32 = -1.5
 	cam   *camera.Camera
 
-	renderToFbo       = true
-	fboRenderDirectly = true
-	fboScale          = gglm.NewVec2(0.25, 0.25)
-	fboOffset         = gglm.NewVec2(0.75, -0.75)
-	demoFbo           buffers.Framebuffer
+	renderToDemoFbo    = true
+	renderToBackBuffer = true
+	demoFboScale       = gglm.NewVec2(0.25, 0.25)
+	demoFboOffset      = gglm.NewVec2(0.75, -0.75)
+	demoFbo            buffers.Framebuffer
 
-	depthMapFbo buffers.Framebuffer
+	renderToDepthMapFbo = true
+	depthMapFboScale    = gglm.NewVec2(0.25, 0.25)
+	depthMapFboOffset   = gglm.NewVec2(0.75, -0.2)
+	depthMapFbo         buffers.Framebuffer
 
 	screenQuadVao buffers.VertexArray
 	screenQuadMat *materials.Material
@@ -115,6 +141,7 @@ var (
 	containerMat  *materials.Material
 	palleteMat    *materials.Material
 	skyboxMat     *materials.Material
+	depthMapMat   *materials.Material
 	debugDepthMat *materials.Material
 
 	cubeMesh   *meshes.Mesh
@@ -124,8 +151,8 @@ var (
 
 	cubeModelMat = gglm.NewTrMatId()
 
-	drawSkybox           = true
-	debugDrawDepthBuffer bool
+	renderSkybox      = true
+	renderDepthBuffer bool
 
 	skyboxCmap assets.Cubemap
 
@@ -136,9 +163,9 @@ var (
 
 	// Lights
 	dirLight = DirLight{
-		Dir:           *gglm.NewVec3(0, -0.8, 0.2).Normalize(),
-		DiffuseColor:  *gglm.NewVec3(0, 0, 0),
-		SpecularColor: *gglm.NewVec3(0, 0, 0),
+		Dir:           *gglm.NewVec3(0.57735, -0.57735, 0.57735).Normalize(),
+		DiffuseColor:  *gglm.NewVec3(1, 1, 1),
+		SpecularColor: *gglm.NewVec3(1, 1, 1),
 	}
 	pointLights = [...]PointLight{
 		{
@@ -236,7 +263,8 @@ func (g *Game) handleWindowEvents(e sdl.Event) {
 			g.WinHeight = e.Data2
 			cam.AspectRatio = float32(g.WinWidth) / float32(g.WinHeight)
 
-			updateProjViewMat()
+			cam.Update()
+			updateAllProjViewMats(cam.ProjMat, cam.ViewMat)
 		}
 	}
 }
@@ -351,8 +379,8 @@ func (g *Game) Init() {
 	// Create materials and assign any unused texture slots to black
 	//
 	screenQuadMat = materials.NewMaterial("Screen Quad Mat", "./res/shaders/screen-quad.glsl")
-	screenQuadMat.SetUnifVec2("scale", fboScale)
-	screenQuadMat.SetUnifVec2("offset", fboOffset)
+	screenQuadMat.SetUnifVec2("scale", demoFboScale)
+	screenQuadMat.SetUnifVec2("offset", demoFboOffset)
 	screenQuadMat.SetUnifInt32("material.diffuse", int32(materials.TextureSlot_Diffuse))
 
 	unlitMat = materials.NewMaterial("Unlit mat", "./res/shaders/simple-unlit.glsl")
@@ -373,6 +401,7 @@ func (g *Game) Init() {
 	whiteMat.SetUnifVec3("dirLight.dir", &dirLight.Dir)
 	whiteMat.SetUnifVec3("dirLight.diffuseColor", &dirLight.DiffuseColor)
 	whiteMat.SetUnifVec3("dirLight.specularColor", &dirLight.SpecularColor)
+	whiteMat.SetUnifInt32("dirLight.shadowMap", int32(materials.TextureSlot_ShadowMap))
 
 	containerMat = materials.NewMaterial("Container mat", "./res/shaders/simple.glsl")
 	containerMat.Shininess = 64
@@ -389,6 +418,7 @@ func (g *Game) Init() {
 	containerMat.SetUnifVec3("dirLight.dir", &dirLight.Dir)
 	containerMat.SetUnifVec3("dirLight.diffuseColor", &dirLight.DiffuseColor)
 	containerMat.SetUnifVec3("dirLight.specularColor", &dirLight.SpecularColor)
+	containerMat.SetUnifInt32("dirLight.shadowMap", int32(materials.TextureSlot_ShadowMap))
 
 	palleteMat = materials.NewMaterial("Pallete mat", "./res/shaders/simple.glsl")
 	palleteMat.Shininess = 64
@@ -404,8 +434,11 @@ func (g *Game) Init() {
 	palleteMat.SetUnifFloat32("material.shininess", palleteMat.Shininess)
 	palleteMat.SetUnifVec3("dirLight.diffuseColor", &dirLight.DiffuseColor)
 	palleteMat.SetUnifVec3("dirLight.specularColor", &dirLight.SpecularColor)
+	palleteMat.SetUnifInt32("dirLight.shadowMap", int32(materials.TextureSlot_ShadowMap))
 
 	debugDepthMat = materials.NewMaterial("Debug depth mat", "./res/shaders/debug-depth.glsl")
+
+	depthMapMat = materials.NewMaterial("Depth Map mat", "./res/shaders/depth-map.glsl")
 
 	skyboxMat = materials.NewMaterial("Skybox mat", "./res/shaders/skybox.glsl")
 	skyboxMat.CubemapTex = skyboxCmap.TexID
@@ -425,9 +458,13 @@ func (g *Game) Init() {
 	screenQuadVao = buffers.NewVertexArray()
 	screenQuadVao.AddVertexBuffer(screenQuadVbo)
 
+	// Fbos and lights
 	g.initFbos()
 	g.updateLights()
-	updateProjViewMat()
+
+	// Initial camera update
+	cam.Update()
+	updateAllProjViewMats(cam.ProjMat, cam.ViewMat)
 }
 
 func (g *Game) initFbos() {
@@ -460,6 +497,12 @@ func (g *Game) initFbos() {
 
 func (g *Game) updateLights() {
 
+	// Directional light
+	whiteMat.ShadowMap = depthMapFbo.Attachments[0].Id
+	containerMat.ShadowMap = depthMapFbo.Attachments[0].Id
+	palleteMat.ShadowMap = depthMapFbo.Attachments[0].Id
+
+	// Point lights
 	for i := 0; i < len(pointLights); i++ {
 
 		pl := &pointLights[i]
@@ -490,6 +533,7 @@ func (g *Game) updateLights() {
 		palleteMat.SetUnifFloat32(indexString+".quadratic", pl.Quadratic)
 	}
 
+	// Spotlights
 	for i := 0; i < len(spotLights); i++ {
 
 		l := &spotLights[i]
@@ -553,10 +597,12 @@ func (g *Game) showDebugWindow() {
 	// Camera
 	imgui.Text("Camera")
 	if imgui.DragFloat3("Cam Pos", &cam.Pos.Data) {
-		updateProjViewMat()
+		cam.Update()
+		updateAllProjViewMats(cam.ProjMat, cam.ViewMat)
 	}
 	if imgui.DragFloat3("Cam Forward", &cam.Forward.Data) {
-		updateProjViewMat()
+		cam.Update()
+		updateAllProjViewMats(cam.ProjMat, cam.ViewMat)
 	}
 
 	imgui.Spacing()
@@ -568,17 +614,6 @@ func (g *Game) showDebugWindow() {
 		whiteMat.SetUnifVec3("ambientColor", ambientColor)
 		containerMat.SetUnifVec3("ambientColor", ambientColor)
 		palleteMat.SetUnifVec3("ambientColor", ambientColor)
-	}
-
-	imgui.Spacing()
-
-	// Specular
-	imgui.Text("Specular Settings")
-
-	if imgui.DragFloat("Specular Shininess", &whiteMat.Shininess) {
-		whiteMat.SetUnifFloat32("material.shininess", whiteMat.Shininess)
-		containerMat.SetUnifFloat32("material.shininess", whiteMat.Shininess)
-		palleteMat.SetUnifFloat32("material.shininess", whiteMat.Shininess)
 	}
 
 	imgui.Spacing()
@@ -602,6 +637,22 @@ func (g *Game) showDebugWindow() {
 		whiteMat.SetUnifVec3("dirLight.specularColor", &dirLight.SpecularColor)
 		containerMat.SetUnifVec3("dirLight.specularColor", &dirLight.SpecularColor)
 		palleteMat.SetUnifVec3("dirLight.specularColor", &dirLight.SpecularColor)
+	}
+
+	imgui.DragFloat("dSize", &dSize)
+	imgui.DragFloat("dNear", &dNear)
+	imgui.DragFloat("dFar", &dFar)
+	imgui.DragFloat3("dPos", &dPos.Data)
+
+	imgui.Spacing()
+
+	// Specular
+	imgui.Text("Specular Settings")
+
+	if imgui.DragFloat("Specular Shininess", &whiteMat.Shininess) {
+		whiteMat.SetUnifFloat32("material.shininess", whiteMat.Shininess)
+		containerMat.SetUnifFloat32("material.shininess", whiteMat.Shininess)
+		palleteMat.SetUnifFloat32("material.shininess", whiteMat.Shininess)
 	}
 
 	imgui.Spacing()
@@ -700,25 +751,24 @@ func (g *Game) showDebugWindow() {
 		imgui.EndListBox()
 	}
 
-	// Fbo
-	imgui.Text("Framebuffer")
+	// Demo fbo
+	imgui.Text("Demo Framebuffer")
+	imgui.Checkbox("Render to demo FBO", &renderToDemoFbo)
+	imgui.DragFloat2("Scale##0", &demoFboScale.Data)
+	imgui.DragFloat2("Offset##0", &demoFboOffset.Data)
 
-	imgui.Checkbox("Render to FBO", &renderToFbo)
-	imgui.Checkbox("Render Directly", &fboRenderDirectly)
-
-	if imgui.DragFloat2("Scale", &fboScale.Data) {
-		screenQuadMat.SetUnifVec2("scale", fboScale)
-	}
-
-	if imgui.DragFloat2("Offset", &fboOffset.Data) {
-		screenQuadMat.SetUnifVec2("offset", fboOffset)
-	}
+	// Depth map fbo
+	imgui.Text("Depth Map Framebuffer")
+	imgui.Checkbox("Render to depth map FBO", &renderToDepthMapFbo)
+	imgui.DragFloat2("Scale##1", &depthMapFboScale.Data)
+	imgui.DragFloat2("Offset##1", &depthMapFboOffset.Data)
 
 	// Other
 	imgui.Text("Other Settings")
 
-	imgui.Checkbox("Draw Skybox", &drawSkybox)
-	imgui.Checkbox("Debug depth buffer", &debugDrawDepthBuffer)
+	imgui.Checkbox("Render skybox", &renderSkybox)
+	imgui.Checkbox("Render to back buffer", &renderToBackBuffer)
+	imgui.Checkbox("Render depth buffer", &renderDepthBuffer)
 
 	imgui.End()
 }
@@ -746,7 +796,7 @@ func (g *Game) updateCameraLookAround() {
 	// Update cam forward
 	cam.UpdateRotation(pitch, yaw)
 
-	updateProjViewMat()
+	updateAllProjViewMats(cam.ProjMat, cam.ViewMat)
 }
 
 func (g *Game) updateCameraPos() {
@@ -777,45 +827,92 @@ func (g *Game) updateCameraPos() {
 	}
 
 	if update {
-		updateProjViewMat()
+		cam.Update()
+		updateAllProjViewMats(cam.ProjMat, cam.ViewMat)
 	}
 }
 
 func (g *Game) Render() {
 
-	if !renderToFbo {
-		g.RenderScene()
-		return
+	dirLightProjViewMat := dirLight.GetProjViewMat()
+
+	// Set some uniforms
+	whiteMat.SetUnifVec3("camPos", &cam.Pos)
+	whiteMat.SetUnifMat4("dirLightProjViewMat", &dirLightProjViewMat)
+
+	containerMat.SetUnifVec3("camPos", &cam.Pos)
+	containerMat.SetUnifMat4("dirLightProjViewMat", &dirLightProjViewMat)
+
+	palleteMat.SetUnifVec3("camPos", &cam.Pos)
+	palleteMat.SetUnifMat4("dirLightProjViewMat", &dirLightProjViewMat)
+
+	depthMapMat.SetUnifMat4("projViewMat", &dirLightProjViewMat)
+
+	// Render depth map for shadows
+	depthMapFbo.BindWithViewport()
+	depthMapFbo.Clear()
+	g.RenderScene(depthMapMat)
+	depthMapFbo.UnBindWithViewport(uint32(g.WinWidth), uint32(g.WinHeight))
+
+	if renderToDepthMapFbo {
+		screenQuadMat.DiffuseTex = depthMapFbo.Attachments[0].Id
+		screenQuadMat.SetUnifVec2("offset", depthMapFboOffset)
+		screenQuadMat.SetUnifVec2("scale", depthMapFboScale)
+		screenQuadMat.Bind()
+		window.Rend.DrawVertexArray(screenQuadMat, &screenQuadVao, 0, 6)
 	}
 
-	demoFbo.Bind()
-	demoFbo.Clear()
-	g.RenderScene()
-	demoFbo.UnBind()
+	if renderToBackBuffer {
 
-	if fboRenderDirectly {
-		g.RenderScene()
+		if renderDepthBuffer {
+			g.RenderScene(debugDepthMat)
+		} else {
+			g.RenderScene(nil)
+		}
 	}
 
-	screenQuadMat.DiffuseTex = demoFbo.Attachments[0].Id
-	window.Rend.DrawVertexArray(screenQuadMat, &screenQuadVao, 0, 6)
+	if renderSkybox {
+		g.DrawSkybox()
+	}
+
+	if renderToDemoFbo {
+
+		demoFbo.Bind()
+		demoFbo.Clear()
+
+		if renderDepthBuffer {
+			g.RenderScene(debugDepthMat)
+		} else {
+			g.RenderScene(nil)
+		}
+
+		if renderSkybox {
+			g.DrawSkybox()
+		}
+
+		demoFbo.UnBind()
+
+		screenQuadMat.DiffuseTex = demoFbo.Attachments[0].Id
+		screenQuadMat.SetUnifVec2("offset", demoFboOffset)
+		screenQuadMat.SetUnifVec2("scale", demoFboScale)
+
+		window.Rend.DrawVertexArray(screenQuadMat, &screenQuadVao, 0, 6)
+	}
 }
 
-func (g *Game) RenderScene() {
+func (g *Game) RenderScene(overrideMat *materials.Material) {
 
 	tempModelMatrix := cubeModelMat.Clone()
 
-	whiteMat.SetUnifVec3("camPos", &cam.Pos)
-	containerMat.SetUnifVec3("camPos", &cam.Pos)
-	palleteMat.SetUnifVec3("camPos", &cam.Pos)
-
+	// See if we need overrides
 	sunMat := palleteMat
 	chairMat := palleteMat
 	cubeMat := containerMat
-	if debugDrawDepthBuffer {
-		sunMat = debugDepthMat
-		chairMat = debugDepthMat
-		cubeMat = debugDepthMat
+
+	if overrideMat != nil {
+		sunMat = overrideMat
+		chairMat = overrideMat
+		cubeMat = overrideMat
 	}
 
 	// Draw dir light
@@ -843,10 +940,6 @@ func (g *Game) RenderScene() {
 		}
 		tempModelMatrix.Translate(gglm.NewVec3(float32(rowSize), -1, 0))
 	}
-
-	if drawSkybox {
-		g.DrawSkybox()
-	}
 }
 
 func (g *Game) DrawSkybox() {
@@ -867,12 +960,9 @@ func (g *Game) DeInit() {
 	g.Win.Destroy()
 }
 
-func updateProjViewMat() {
+func updateAllProjViewMats(projMat, viewMat gglm.Mat4) {
 
-	cam.Update()
-
-	projViewMat := cam.ProjMat.Clone()
-	projViewMat.Mul(&cam.ViewMat)
+	projViewMat := projMat.Clone().Mul(&viewMat)
 
 	unlitMat.SetUnifMat4("projViewMat", projViewMat)
 	whiteMat.SetUnifMat4("projViewMat", projViewMat)
@@ -881,14 +971,13 @@ func updateProjViewMat() {
 	debugDepthMat.SetUnifMat4("projViewMat", projViewMat)
 
 	// Update skybox projViewMat
-	viewMat := cam.ViewMat.Clone()
-	viewMat.Set(0, 3, 0)
-	viewMat.Set(1, 3, 0)
-	viewMat.Set(2, 3, 0)
-	viewMat.Set(3, 0, 0)
-	viewMat.Set(3, 1, 0)
-	viewMat.Set(3, 2, 0)
-	viewMat.Set(3, 3, 0)
-	skyboxMat.SetUnifMat4("projViewMat", cam.ProjMat.Clone().Mul(viewMat))
-
+	skyboxViewMat := viewMat.Clone()
+	skyboxViewMat.Set(0, 3, 0)
+	skyboxViewMat.Set(1, 3, 0)
+	skyboxViewMat.Set(2, 3, 0)
+	skyboxViewMat.Set(3, 0, 0)
+	skyboxViewMat.Set(3, 1, 0)
+	skyboxViewMat.Set(3, 2, 0)
+	skyboxViewMat.Set(3, 3, 0)
+	skyboxMat.SetUnifMat4("projViewMat", projMat.Clone().Mul(skyboxViewMat))
 }

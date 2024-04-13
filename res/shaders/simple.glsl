@@ -10,10 +10,11 @@ out vec3 vertNormal;
 out vec2 vertUV0;
 out vec3 vertColor;
 out vec3 fragPos;
+out vec4 fragPosDirLight;
 
-//MVP = Model View Projection
 uniform mat4 modelMat;
 uniform mat4 projViewMat;
+uniform mat4 dirLightProjViewMat;
 
 void main()
 {
@@ -22,12 +23,15 @@ void main()
     // This produces the normal matrix that multiplies with the model normal to produce the
     // world space normal. Based on 'One last thing' section from: https://learnopengl.com/Lighting/Basic-Lighting
     vertNormal = mat3(transpose(inverse(modelMat))) * vertNormalIn;
+    vertNormal = mat3(transpose(inverse(modelMat))) * vertNormalIn;
     
     vertUV0 = vertUV0In;
     vertColor = vertColorIn;
 
     vec4 modelVert = modelMat * vec4(vertPosIn, 1);
     fragPos = modelVert.xyz;
+    fragPosDirLight = dirLightProjViewMat * vec4(fragPos, 1);
+
     gl_Position = projViewMat * modelVert;
 }
 
@@ -48,6 +52,7 @@ struct DirLight {
     vec3 dir;
     vec3 diffuseColor;
     vec3 specularColor;
+    sampler2D shadowMap;
 };
 
 uniform DirLight dirLight;
@@ -83,6 +88,7 @@ in vec3 vertColor;
 in vec3 vertNormal;
 in vec2 vertUV0;
 in vec3 fragPos;
+in vec4 fragPosDirLight;
 
 out vec4 fragColor;
 
@@ -92,6 +98,27 @@ vec4 specularTexColor;
 vec4 emissionTexColor;
 vec3 normalizedVertNorm;
 vec3 viewDir;
+
+float CalcShadow(sampler2D shadowMap)
+{
+    // Move from clip space to NDC
+    vec3 projCoords = fragPosDirLight.xyz / fragPosDirLight.w;
+
+    // Move from [-1,1] to [0, 1]
+    projCoords = projCoords * 0.5 + 0.5;
+
+    // currentDepth is the fragment depth from the light's perspective
+    float currentDepth = projCoords.z;
+
+    // Closest depth is the closest depth value from the light's perspective
+    float closestDepth = texture(shadowMap, projCoords.xy).r;
+
+    // If our depth is larger than the lights closest depth,
+    // then there is something closer to the light than us, and so we are in shadow
+    float shadow = currentDepth > closestDepth  ? 1.0 : 0.0;
+
+    return shadow;
+}
 
 vec3 CalcDirLight()
 {
@@ -106,7 +133,10 @@ vec3 CalcDirLight()
     float specularAmount = pow(max(dot(normalizedVertNorm, halfwayDir), 0.0), material.shininess);
     vec3 finalSpecular = specularAmount * dirLight.specularColor * specularTexColor.rgb;
 
-    return finalDiffuse + finalSpecular;
+    // Shadow
+    float shadow = CalcShadow(dirLight.shadowMap);
+
+    return (finalDiffuse + finalSpecular) * (1.0 - shadow);
 }
 
 vec3 CalcPointLight(PointLight pointLight)

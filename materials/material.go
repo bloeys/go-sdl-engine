@@ -11,11 +11,12 @@ import (
 type TextureSlot uint32
 
 const (
-	TextureSlot_Diffuse  TextureSlot = 0
-	TextureSlot_Specular TextureSlot = 1
-	TextureSlot_Normal   TextureSlot = 2
-	TextureSlot_Emission TextureSlot = 3
-	TextureSlot_Cubemap  TextureSlot = 10
+	TextureSlot_Diffuse   TextureSlot = 0
+	TextureSlot_Specular  TextureSlot = 1
+	TextureSlot_Normal    TextureSlot = 2
+	TextureSlot_Emission  TextureSlot = 3
+	TextureSlot_Cubemap   TextureSlot = 10
+	TextureSlot_ShadowMap TextureSlot = 11
 )
 
 type Material struct {
@@ -36,6 +37,9 @@ type Material struct {
 
 	// Cubemap
 	CubemapTex uint32
+
+	// Shadowmaps
+	ShadowMap uint32
 }
 
 func (m *Material) Bind() {
@@ -65,6 +69,11 @@ func (m *Material) Bind() {
 	if m.CubemapTex != 0 {
 		gl.ActiveTexture(uint32(gl.TEXTURE0 + TextureSlot_Cubemap))
 		gl.BindTexture(gl.TEXTURE_CUBE_MAP, m.CubemapTex)
+	}
+
+	if m.ShadowMap != 0 {
+		gl.ActiveTexture(uint32(gl.TEXTURE0 + TextureSlot_ShadowMap))
+		gl.BindTexture(gl.TEXTURE_2D, m.ShadowMap)
 	}
 }
 
