@@ -51,7 +51,7 @@ type DirLight struct {
 }
 
 var (
-	dSize float32 = 50
+	dSize float32 = 30
 	dNear float32 = 1
 	dFar  float32 = 50
 	dPos          = gglm.NewVec3(0, 10, 0)
@@ -163,7 +163,7 @@ var (
 
 	// Lights
 	dirLight = DirLight{
-		Dir:           *gglm.NewVec3(0.57735, -0.57735, 0.57735).Normalize(),
+		Dir:           *gglm.NewVec3(0, -0.5, -0.8).Normalize(),
 		DiffuseColor:  *gglm.NewVec3(1, 1, 1),
 		SpecularColor: *gglm.NewVec3(1, 1, 1),
 	}
@@ -848,10 +848,19 @@ func (g *Game) Render() {
 
 	depthMapMat.SetUnifMat4("projViewMat", &dirLightProjViewMat)
 
+	//
 	// Render depth map for shadows
+	//
 	depthMapFbo.BindWithViewport()
 	depthMapFbo.Clear()
+
+	// Culling front faces helps 'peter panning' when
+	// drawing shadow maps, but works only for solids with a back face (i.e. quads won't cast shadows).
+	// Check more here: https://learnopengl.com/Advanced-Lighting/Shadows/Shadow-Mapping
+	gl.CullFace(gl.FRONT)
 	g.RenderScene(depthMapMat)
+	gl.CullFace(gl.BACK)
+
 	depthMapFbo.UnBindWithViewport(uint32(g.WinWidth), uint32(g.WinHeight))
 
 	if renderToDepthMapFbo {
@@ -932,14 +941,21 @@ func (g *Game) RenderScene(overrideMat *materials.Material) {
 	window.Rend.DrawMesh(cubeMesh, gglm.NewTrMatId().Translate(gglm.NewVec3(0, -3, 0)).Scale(gglm.NewVec3(20, 1, 20)), cubeMat)
 
 	// Cubes
-	rowSize := 1
-	for y := 0; y < rowSize; y++ {
-		for x := 0; x < rowSize; x++ {
-			tempModelMatrix.Translate(gglm.NewVec3(-6, 0, 0))
-			window.Rend.DrawMesh(cubeMesh, tempModelMatrix, cubeMat)
-		}
-		tempModelMatrix.Translate(gglm.NewVec3(float32(rowSize), -1, 0))
-	}
+	tempModelMatrix.Translate(gglm.NewVec3(-6, 0, 0))
+	window.Rend.DrawMesh(cubeMesh, tempModelMatrix, cubeMat)
+
+	tempModelMatrix.Translate(gglm.NewVec3(0, -1, -4))
+	window.Rend.DrawMesh(cubeMesh, tempModelMatrix, cubeMat)
+
+	// Cubes generator
+	// rowSize := 1
+	// for y := 0; y < rowSize; y++ {
+	// 	for x := 0; x < rowSize; x++ {
+	// 		tempModelMatrix.Translate(gglm.NewVec3(-6, 0, 0))
+	// 		window.Rend.DrawMesh(cubeMesh, tempModelMatrix, cubeMat)
+	// 	}
+	// 	tempModelMatrix.Translate(gglm.NewVec3(float32(rowSize), -1, 0))
+	// }
 }
 
 func (g *Game) DrawSkybox() {

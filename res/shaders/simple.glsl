@@ -99,7 +99,7 @@ vec4 emissionTexColor;
 vec3 normalizedVertNorm;
 vec3 viewDir;
 
-float CalcShadow(sampler2D shadowMap)
+float CalcShadow(sampler2D shadowMap, vec3 lightDir)
 {
     // Move from clip space to NDC
     vec3 projCoords = fragPosDirLight.xyz / fragPosDirLight.w;
@@ -113,9 +113,13 @@ float CalcShadow(sampler2D shadowMap)
     // Closest depth is the closest depth value from the light's perspective
     float closestDepth = texture(shadowMap, projCoords.xy).r;
 
+    // Bias in the range [0.005, 0.05] depending on the angle, where a higher
+    // angle gives a higher bias, as shadow acne gets worse with angle
+    float bias = max(0.05 * (1.0 - dot(normalizedVertNorm, lightDir)), 0.005);
+
     // If our depth is larger than the lights closest depth,
     // then there is something closer to the light than us, and so we are in shadow
-    float shadow = currentDepth > closestDepth  ? 1.0 : 0.0;
+    float shadow = currentDepth - bias > closestDepth  ? 1.0 : 0.0;
 
     return shadow;
 }
@@ -134,7 +138,7 @@ vec3 CalcDirLight()
     vec3 finalSpecular = specularAmount * dirLight.specularColor * specularTexColor.rgb;
 
     // Shadow
-    float shadow = CalcShadow(dirLight.shadowMap);
+    float shadow = CalcShadow(dirLight.shadowMap, lightDir);
 
     return (finalDiffuse + finalSpecular) * (1.0 - shadow);
 }
