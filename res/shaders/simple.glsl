@@ -114,16 +114,27 @@ float CalcShadow(sampler2D shadowMap, vec3 lightDir)
     // currentDepth is the fragment depth from the light's perspective
     float currentDepth = projCoords.z;
 
-    // Closest depth is the closest depth value from the light's perspective
-    float closestDepth = texture(shadowMap, projCoords.xy).r;
-
     // Bias in the range [0.005, 0.05] depending on the angle, where a higher
     // angle gives a higher bias, as shadow acne gets worse with angle
     float bias = max(0.05 * (1.0 - dot(normalizedVertNorm, lightDir)), 0.005);
 
-    // If our depth is larger than the lights closest depth,
-    // then there is something closer to the light than us, and so we are in shadow
-    float shadow = currentDepth - bias > closestDepth  ? 1.0 : 0.0;
+    // 'Percentage Close Filtering'. B
+    // Basically get soft shadows by averaging this texel and surrounding ones
+    float shadow = 0.0;
+    vec2 texelSize = 1.0 / textureSize(shadowMap, 0);
+    for(int x = -1; x <= 1; ++x)
+    {
+        for(int y = -1; y <= 1; ++y)
+        {
+            float pcfDepth = texture(shadowMap, projCoords.xy + vec2(x, y) * texelSize).r; 
+
+            // If our depth is larger than the lights closest depth at the texel we checked (projCoords),
+            // then there is something closer to the light than us, and so we are in shadow
+            shadow += currentDepth - bias > pcfDepth ? 1.0 : 0.0;
+        }
+    }
+
+    shadow /= 9.0;
 
     return shadow;
 }
