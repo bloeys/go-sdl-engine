@@ -116,12 +116,12 @@ float CalcShadow(sampler2D shadowMap, vec3 lightDir)
 
     // Bias in the range [0.005, 0.05] depending on the angle, where a higher
     // angle gives a higher bias, as shadow acne gets worse with angle
-    float bias = max(0.05 * (1.0 - dot(normalizedVertNorm, lightDir)), 0.005);
+    float bias = max(0.05 * (1 - dot(normalizedVertNorm, lightDir)), 0.005);
 
     // 'Percentage Close Filtering'. B
     // Basically get soft shadows by averaging this texel and surrounding ones
-    float shadow = 0.0;
-    vec2 texelSize = 1.0 / textureSize(shadowMap, 0);
+    float shadow = 0;
+    vec2 texelSize = 1 / textureSize(shadowMap, 0);
     for(int x = -1; x <= 1; ++x)
     {
         for(int y = -1; y <= 1; ++y)
@@ -130,11 +130,11 @@ float CalcShadow(sampler2D shadowMap, vec3 lightDir)
 
             // If our depth is larger than the lights closest depth at the texel we checked (projCoords),
             // then there is something closer to the light than us, and so we are in shadow
-            shadow += currentDepth - bias > pcfDepth ? 1.0 : 0.0;
+            shadow += currentDepth - bias > pcfDepth ? 1 : 0;
         }
     }
 
-    shadow /= 9.0;
+    shadow /= 9;
 
     return shadow;
 }
@@ -155,7 +155,7 @@ vec3 CalcDirLight()
     // Shadow
     float shadow = CalcShadow(dirLight.shadowMap, lightDir);
 
-    return (finalDiffuse + finalSpecular) * (1.0 - shadow);
+    return (finalDiffuse + finalSpecular) * (1 - shadow);
 }
 
 vec3 CalcPointLight(PointLight pointLight)
@@ -178,7 +178,7 @@ vec3 CalcPointLight(PointLight pointLight)
 
     // attenuation
     float distToLight = length(pointLight.pos - fragPos);
-    float attenuation = 1.0 / (pointLight.constant + pointLight.linear * distToLight + pointLight.quadratic * (distToLight * distToLight));  
+    float attenuation = 1 / (pointLight.constant + pointLight.linear * distToLight + pointLight.quadratic * (distToLight * distToLight));  
 
     return (finalDiffuse + finalSpecular) * attenuation;
 }
@@ -195,7 +195,7 @@ vec3 CalcSpotLight(SpotLight light)
     // light after outer cutoff
     float theta = dot(fragToLightDir, normalize(-light.dir));
     float epsilon = (light.innerCutoff - light.outerCutoff);
-    float intensity = clamp((theta - light.outerCutoff) / epsilon, 0.0, 1.0);
+    float intensity = clamp((theta - light.outerCutoff) / epsilon, 0.0, 1);
 
     if (intensity == 0)
         return vec3(0);
