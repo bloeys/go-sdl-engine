@@ -107,6 +107,10 @@ float CalcShadow(sampler2D shadowMap, vec3 lightDir)
     // Move from [-1,1] to [0, 1]
     projCoords = projCoords * 0.5 + 0.5;
 
+    // If sampling outside the depth texture then force 'no shadow'
+    if(projCoords.z > 1)
+        return 0;
+
     // currentDepth is the fragment depth from the light's perspective
     float currentDepth = projCoords.z;
 
