@@ -23,7 +23,6 @@ void main()
     // This produces the normal matrix that multiplies with the model normal to produce the
     // world space normal. Based on 'One last thing' section from: https://learnopengl.com/Lighting/Basic-Lighting
     vertNormal = mat3(transpose(inverse(modelMat))) * vertNormalIn;
-    vertNormal = mat3(transpose(inverse(modelMat))) * vertNormalIn;
     
     vertUV0 = vertUV0In;
     vertColor = vertColorIn;
@@ -195,7 +194,7 @@ vec3 CalcSpotLight(SpotLight light)
     // light after outer cutoff
     float theta = dot(fragToLightDir, normalize(-light.dir));
     float epsilon = (light.innerCutoff - light.outerCutoff);
-    float intensity = clamp((theta - light.outerCutoff) / epsilon, 0.0, 1);
+    float intensity = clamp((theta - light.outerCutoff) / epsilon, float(0), float(1));
 
     if (intensity == 0)
         return vec3(0);
