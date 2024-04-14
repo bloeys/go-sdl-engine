@@ -117,7 +117,7 @@ float CalcShadow(sampler2D shadowMap, vec3 lightDir)
     // angle gives a higher bias, as shadow acne gets worse with angle
     float bias = max(0.05 * (1 - dot(normalizedVertNorm, lightDir)), 0.005);
 
-    // 'Percentage Close Filtering'. B
+    // 'Percentage Close Filtering'.
     // Basically get soft shadows by averaging this texel and surrounding ones
     float shadow = 0;
     vec2 texelSize = 1 / textureSize(shadowMap, 0);
