@@ -51,23 +51,22 @@ type DirLight struct {
 }
 
 var (
-	dSize float32 = 30
-	dNear float32 = 1
-	dFar  float32 = 50
-	dPos          = gglm.NewVec3(0, 10, 0)
+	dirLightSize float32 = 30
+	dirLightNear float32 = 0.1
+	dirLightFar  float32 = 30
+	dirLightPos          = gglm.NewVec3(0, 10, 0)
 )
 
 func (d *DirLight) GetProjViewMat() gglm.Mat4 {
 
 	// Some arbitrary position for the directional light
-	pos := dPos //gglm.NewVec3(0, 10, 0)
+	pos := dirLightPos
 
-	size := dSize     //float32(50)
-	nearClip := dNear //float32(1)
-	farClip := dFar   //float32(50)
+	size := dirLightSize
+	nearClip := dirLightNear
+	farClip := dirLightFar
 
 	projMat := gglm.Ortho(-size, size, -size, size, nearClip, farClip).Mat4
-	// viewMat := gglm.LookAtRH(pos, gglm.NewVec3(0, 0, 0), gglm.NewVec3(0, 1, 0)).Mat4
 	viewMat := gglm.LookAtRH(pos, pos.Clone().Add(d.Dir.Clone().Scale(10)), gglm.NewVec3(0, 1, 0)).Mat4
 
 	return *projMat.Mul(&viewMat)
@@ -639,10 +638,10 @@ func (g *Game) showDebugWindow() {
 		palleteMat.SetUnifVec3("dirLight.specularColor", &dirLight.SpecularColor)
 	}
 
-	imgui.DragFloat("dSize", &dSize)
-	imgui.DragFloat("dNear", &dNear)
-	imgui.DragFloat("dFar", &dFar)
-	imgui.DragFloat3("dPos", &dPos.Data)
+	imgui.DragFloat3("dPos", &dirLightPos.Data)
+	imgui.DragFloat("dSize", &dirLightSize)
+	imgui.DragFloat("dNear", &dirLightNear)
+	imgui.DragFloat("dFar", &dirLightFar)
 
 	imgui.Spacing()
 
@@ -857,6 +856,8 @@ func (g *Game) Render() {
 	// Culling front faces helps 'peter panning' when
 	// drawing shadow maps, but works only for solids with a back face (i.e. quads won't cast shadows).
 	// Check more here: https://learnopengl.com/Advanced-Lighting/Shadows/Shadow-Mapping
+	//
+	// Some note that this is too troublesome and fails in many cases. Might be better to remove.
 	gl.CullFace(gl.FRONT)
 	g.RenderScene(depthMapMat)
 	gl.CullFace(gl.BACK)
@@ -909,6 +910,13 @@ func (g *Game) Render() {
 	}
 }
 
+var (
+	rotatingCubeSpeedDeg1 float32 = 45
+	rotatingCubeSpeedDeg2 float32 = 90
+	rotatingCubeTrMat1            = *gglm.NewTrMatId().Translate(gglm.NewVec3(-4, -1, 4))
+	rotatingCubeTrMat2            = *gglm.NewTrMatId().Translate(gglm.NewVec3(-1, 0.5, 4))
+)
+
 func (g *Game) RenderScene(overrideMat *materials.Material) {
 
 	tempModelMatrix := cubeModelMat.Clone()
@@ -946,6 +954,13 @@ func (g *Game) RenderScene(overrideMat *materials.Material) {
 
 	tempModelMatrix.Translate(gglm.NewVec3(0, -1, -4))
 	window.Rend.DrawMesh(cubeMesh, tempModelMatrix, cubeMat)
+
+	// Rotating cubes
+	rotatingCubeTrMat1.Rotate(rotatingCubeSpeedDeg1*gglm.Deg2Rad*timing.DT(), gglm.NewVec3(0, 1, 0))
+	window.Rend.DrawMesh(cubeMesh, &rotatingCubeTrMat1, cubeMat)
+
+	rotatingCubeTrMat2.Rotate(rotatingCubeSpeedDeg2*gglm.Deg2Rad*timing.DT(), gglm.NewVec3(1, 1, 0))
+	window.Rend.DrawMesh(cubeMesh, &rotatingCubeTrMat2, cubeMat)
 
 	// Cubes generator
 	// rowSize := 1

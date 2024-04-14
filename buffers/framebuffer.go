@@ -276,8 +276,15 @@ func (fbo *Framebuffer) NewDepthAttachment(
 
 		gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST)
 		gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST)
-		gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT)
-		gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT)
+
+		// This is so that any sampling outside the depth map gives a full depth value.
+		// Useful for example when doing shadow maps where we want things outside
+		// the range of the texture to not show shadow
+		borderColor := []float32{1, 1, 1, 1}
+		gl.TexParameterfv(gl.TEXTURE_2D, gl.TEXTURE_BORDER_COLOR, &borderColor[0])
+		gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_BORDER)
+		gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_BORDER)
+
 		gl.BindTexture(gl.TEXTURE_2D, 0)
 
 		// Attach to fbo
