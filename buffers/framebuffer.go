@@ -11,6 +11,7 @@ const (
 	FramebufferAttachmentType_Unknown FramebufferAttachmentType = iota
 	FramebufferAttachmentType_Texture
 	FramebufferAttachmentType_Renderbuffer
+	FramebufferAttachmentType_Cubemap
 )
 
 func (f FramebufferAttachmentType) IsValid() bool {
@@ -19,6 +20,8 @@ func (f FramebufferAttachmentType) IsValid() bool {
 	case FramebufferAttachmentType_Texture:
 		fallthrough
 	case FramebufferAttachmentType_Renderbuffer:
+		fallthrough
+	case FramebufferAttachmentType_Cubemap:
 		return true
 
 	default:
@@ -169,6 +172,10 @@ func (fbo *Framebuffer) NewColorAttachment(
 		logging.ErrLog.Fatalf("failed creating color attachment for framebuffer due to unknown attachment type. Type=%d\n", attachType)
 	}
 
+	if attachType == FramebufferAttachmentType_Cubemap {
+		logging.ErrLog.Fatalf("failed creating color attachment because cubemaps can not be color attachments (at least in this implementation. You might be able to do it manually)\n")
+	}
+
 	if !attachFormat.IsColorFormat() {
 		logging.ErrLog.Fatalf("failed creating color attachment for framebuffer due to attachment data format not being a valid color type. Data format=%d\n", attachFormat)
 	}
@@ -304,6 +311,30 @@ func (fbo *Framebuffer) NewDepthAttachment(
 
 		// Attach to fbo
 		gl.FramebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, a.Id)
+
+	} else if attachType == FramebufferAttachmentType_Cubemap {
+
+		// Create cubemap
+		gl.GenTextures(1, &a.Id)
+		if a.Id == 0 {
+			logging.ErrLog.Fatalf("failed to generate texture for framebuffer. GlError=%d\n", gl.GetError())
+		}
+
+		gl.BindTexture(gl.TEXTURE_CUBE_MAP, a.Id)
+		for i := 0; i < 6; i++ {
+			gl.TexImage2D(uint32(gl.TEXTURE_CUBE_MAP_POSITIVE_X+i), 0, attachFormat.GlInternalFormat(), int32(fbo.Width), int32(fbo.Height), 0, attachFormat.GlFormat(), gl.FLOAT, nil)
+		}
+
+		gl.TexParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_MIN_FILTER, gl.NEAREST)
+		gl.TexParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_MAG_FILTER, gl.NEAREST)
+		gl.TexParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
+		gl.TexParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
+		gl.TexParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_WRAP_R, gl.CLAMP_TO_EDGE)
+
+		gl.BindTexture(gl.TEXTURE_2D, 0)
+
+		// Attach to fbo
+		gl.FramebufferTexture(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, a.Id, 0)
 	}
 
 	fbo.UnBind()

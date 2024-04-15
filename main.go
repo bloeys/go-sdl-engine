@@ -127,21 +127,21 @@ var (
 	demoFboOffset      = gglm.NewVec2(0.75, -0.75)
 	demoFbo            buffers.Framebuffer
 
-	renderToDepthMapFbo = true
-	depthMapFboScale    = gglm.NewVec2(0.25, 0.25)
-	depthMapFboOffset   = gglm.NewVec2(0.75, -0.2)
-	depthMapFbo         buffers.Framebuffer
+	showDirLightDepthMapFbo   = true
+	dirLightDepthMapFboScale  = gglm.NewVec2(0.25, 0.25)
+	dirLightDepthMapFboOffset = gglm.NewVec2(0.75, -0.2)
+	dirLightDepthMapFbo       buffers.Framebuffer
 
 	screenQuadVao buffers.VertexArray
 	screenQuadMat *materials.Material
 
-	unlitMat      *materials.Material
-	whiteMat      *materials.Material
-	containerMat  *materials.Material
-	palleteMat    *materials.Material
-	skyboxMat     *materials.Material
-	depthMapMat   *materials.Material
-	debugDepthMat *materials.Material
+	unlitMat            *materials.Material
+	whiteMat            *materials.Material
+	containerMat        *materials.Material
+	palleteMat          *materials.Material
+	skyboxMat           *materials.Material
+	dirLightDepthMapMat *materials.Material
+	debugDepthMat       *materials.Material
 
 	cubeMesh   *meshes.Mesh
 	sphereMesh *meshes.Mesh
@@ -437,7 +437,7 @@ func (g *Game) Init() {
 
 	debugDepthMat = materials.NewMaterial("Debug depth mat", "./res/shaders/debug-depth.glsl")
 
-	depthMapMat = materials.NewMaterial("Depth Map mat", "./res/shaders/depth-map.glsl")
+	dirLightDepthMapMat = materials.NewMaterial("Depth Map mat", "./res/shaders/depth-map.glsl")
 
 	skyboxMat = materials.NewMaterial("Skybox mat", "./res/shaders/skybox.glsl")
 	skyboxMat.CubemapTex = skyboxCmap.TexID
@@ -484,22 +484,32 @@ func (g *Game) initFbos() {
 	assert.T(demoFbo.IsComplete(), "Demo fbo is not complete after init")
 
 	// Depth map fbo
-	depthMapFbo = buffers.NewFramebuffer(1024, 1024)
-	depthMapFbo.SetNoColorBuffer()
-	depthMapFbo.NewDepthAttachment(
+	dirLightDepthMapFbo = buffers.NewFramebuffer(1024, 1024)
+	dirLightDepthMapFbo.SetNoColorBuffer()
+	dirLightDepthMapFbo.NewDepthAttachment(
 		buffers.FramebufferAttachmentType_Texture,
 		buffers.FramebufferAttachmentDataFormat_DepthF32,
 	)
 
-	assert.T(depthMapFbo.IsComplete(), "Depth map fbo is not complete after init")
+	assert.T(dirLightDepthMapFbo.IsComplete(), "Depth map fbo is not complete after init")
+
+	// Cubemap fbo
+	cubemapFbo := buffers.NewFramebuffer(1024, 1024)
+	cubemapFbo.SetNoColorBuffer()
+	cubemapFbo.NewDepthAttachment(
+		buffers.FramebufferAttachmentType_Cubemap,
+		buffers.FramebufferAttachmentDataFormat_DepthF32,
+	)
+
+	assert.T(cubemapFbo.IsComplete(), "Cubemap fbo is not complete after init")
 }
 
 func (g *Game) updateLights() {
 
 	// Directional light
-	whiteMat.ShadowMap = depthMapFbo.Attachments[0].Id
-	containerMat.ShadowMap = depthMapFbo.Attachments[0].Id
-	palleteMat.ShadowMap = depthMapFbo.Attachments[0].Id
+	whiteMat.ShadowMap = dirLightDepthMapFbo.Attachments[0].Id
+	containerMat.ShadowMap = dirLightDepthMapFbo.Attachments[0].Id
+	palleteMat.ShadowMap = dirLightDepthMapFbo.Attachments[0].Id
 
 	// Point lights
 	for i := 0; i < len(pointLights); i++ {
@@ -752,15 +762,15 @@ func (g *Game) showDebugWindow() {
 
 	// Demo fbo
 	imgui.Text("Demo Framebuffer")
-	imgui.Checkbox("Render to demo FBO", &renderToDemoFbo)
+	imgui.Checkbox("Show FBO##0", &renderToDemoFbo)
 	imgui.DragFloat2("Scale##0", &demoFboScale.Data)
 	imgui.DragFloat2("Offset##0", &demoFboOffset.Data)
 
 	// Depth map fbo
-	imgui.Text("Depth Map Framebuffer")
-	imgui.Checkbox("Render to depth map FBO", &renderToDepthMapFbo)
-	imgui.DragFloat2("Scale##1", &depthMapFboScale.Data)
-	imgui.DragFloat2("Offset##1", &depthMapFboOffset.Data)
+	imgui.Text("Directional Light Depth Map Framebuffer")
+	imgui.Checkbox("Show FBO##1", &showDirLightDepthMapFbo)
+	imgui.DragFloat2("Scale##1", &dirLightDepthMapFboScale.Data)
+	imgui.DragFloat2("Offset##1", &dirLightDepthMapFboOffset.Data)
 
 	// Other
 	imgui.Text("Other Settings")
@@ -845,13 +855,13 @@ func (g *Game) Render() {
 	palleteMat.SetUnifVec3("camPos", &cam.Pos)
 	palleteMat.SetUnifMat4("dirLightProjViewMat", &dirLightProjViewMat)
 
-	depthMapMat.SetUnifMat4("projViewMat", &dirLightProjViewMat)
+	dirLightDepthMapMat.SetUnifMat4("projViewMat", &dirLightProjViewMat)
 
 	//
 	// Render depth map for shadows
 	//
-	depthMapFbo.BindWithViewport()
-	depthMapFbo.Clear()
+	dirLightDepthMapFbo.BindWithViewport()
+	dirLightDepthMapFbo.Clear()
 
 	// Culling front faces helps 'peter panning' when
 	// drawing shadow maps, but works only for solids with a back face (i.e. quads won't cast shadows).
@@ -859,15 +869,15 @@ func (g *Game) Render() {
 	//
 	// Some note that this is too troublesome and fails in many cases. Might be better to remove.
 	gl.CullFace(gl.FRONT)
-	g.RenderScene(depthMapMat)
+	g.RenderScene(dirLightDepthMapMat)
 	gl.CullFace(gl.BACK)
 
-	depthMapFbo.UnBindWithViewport(uint32(g.WinWidth), uint32(g.WinHeight))
+	dirLightDepthMapFbo.UnBindWithViewport(uint32(g.WinWidth), uint32(g.WinHeight))
 
-	if renderToDepthMapFbo {
-		screenQuadMat.DiffuseTex = depthMapFbo.Attachments[0].Id
-		screenQuadMat.SetUnifVec2("offset", depthMapFboOffset)
-		screenQuadMat.SetUnifVec2("scale", depthMapFboScale)
+	if showDirLightDepthMapFbo {
+		screenQuadMat.DiffuseTex = dirLightDepthMapFbo.Attachments[0].Id
+		screenQuadMat.SetUnifVec2("offset", dirLightDepthMapFboOffset)
+		screenQuadMat.SetUnifVec2("scale", dirLightDepthMapFboScale)
 		screenQuadMat.Bind()
 		window.Rend.DrawVertexArray(screenQuadMat, &screenQuadVao, 0, 6)
 	}
