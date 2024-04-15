@@ -63,10 +63,12 @@ struct PointLight {
     float constant;
     float linear;
     float quadratic;
+    float farPlane;
 };
 
-#define NUM_POINT_LIGHTS 16
+#define NUM_POINT_LIGHTS 8
 uniform PointLight pointLights[NUM_POINT_LIGHTS];
+uniform samplerCubeArray pointLightCubeShadowMaps;
 
 struct SpotLight {
     vec3 pos;
@@ -98,7 +100,7 @@ vec4 emissionTexColor;
 vec3 normalizedVertNorm;
 vec3 viewDir;
 
-float CalcShadow(sampler2D shadowMap, vec3 lightDir)
+float CalcDirShadow(sampler2D shadowMap, vec3 lightDir)
 {
     // Move from clip space to NDC
     vec3 projCoords = fragPosDirLight.xyz / fragPosDirLight.w;
@@ -152,12 +154,30 @@ vec3 CalcDirLight()
     vec3 finalSpecular = specularAmount * dirLight.specularColor * specularTexColor.rgb;
 
     // Shadow
-    float shadow = CalcShadow(dirLight.shadowMap, lightDir);
+    float shadow = CalcDirShadow(dirLight.shadowMap, lightDir);
 
     return (finalDiffuse + finalSpecular) * (1 - shadow);
 }
 
-vec3 CalcPointLight(PointLight pointLight)
+float CalcPointShadow(int lightIndex, vec3 lightPos, vec3 lightDir, float farPlane) {
+
+    vec3 lightToFrag = fragPos - lightPos;
+
+    float closestDepth = texture(pointLightCubeShadowMaps, vec4(lightToFrag, lightIndex)).r;
+
+    // We stored depth in the cubemap in the range [0, 1], so now we move back to [0, farPlane]
+    closestDepth *= farPlane;
+
+    // Get depth of current fragment
+    float currentDepth = length(lightToFrag);
+
+    float bias = max(0.05 * (1 - dot(normalizedVertNorm, lightDir)), 0.005);
+    float shadow = currentDepth -  bias > closestDepth ? 1.0 : 0.0;
+
+    return shadow;
+}
+
+vec3 CalcPointLight(PointLight pointLight, int lightIndex)
 {
     // Ignore unset lights
     if (pointLight.constant == 0){
@@ -175,11 +195,14 @@ vec3 CalcPointLight(PointLight pointLight)
     float specularAmount = pow(max(dot(normalizedVertNorm, halfwayDir), 0.0), material.shininess);
     vec3 finalSpecular = specularAmount * pointLight.specularColor * specularTexColor.rgb;
 
-    // attenuation
+    // Attenuation
     float distToLight = length(pointLight.pos - fragPos);
     float attenuation = 1 / (pointLight.constant + pointLight.linear * distToLight + pointLight.quadratic * (distToLight * distToLight));  
 
-    return (finalDiffuse + finalSpecular) * attenuation;
+    // Shadow
+    float shadow = CalcPointShadow(lightIndex, pointLight.pos, lightDir, pointLight.farPlane);
+
+    return (finalDiffuse + finalSpecular) * attenuation * (1 - shadow);
 }
 
 vec3 CalcSpotLight(SpotLight light)
@@ -226,7 +249,7 @@ void main()
 
     for (int i = 0; i < NUM_POINT_LIGHTS; i++)
     {
-        finalColor += CalcPointLight(pointLights[i]);
+        finalColor += CalcPointLight(pointLights[i], i);
     }
 
     for (int i = 0; i < NUM_SPOT_LIGHTS; i++)

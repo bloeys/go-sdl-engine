@@ -1,6 +1,7 @@
 package buffers
 
 import (
+	"github.com/bloeys/nmage/assert"
 	"github.com/bloeys/nmage/logging"
 	"github.com/go-gl/gl/v4.1-core/gl"
 )
@@ -12,6 +13,7 @@ const (
 	FramebufferAttachmentType_Texture
 	FramebufferAttachmentType_Renderbuffer
 	FramebufferAttachmentType_Cubemap
+	FramebufferAttachmentType_Cubemap_Array
 )
 
 func (f FramebufferAttachmentType) IsValid() bool {
@@ -22,6 +24,8 @@ func (f FramebufferAttachmentType) IsValid() bool {
 	case FramebufferAttachmentType_Renderbuffer:
 		fallthrough
 	case FramebufferAttachmentType_Cubemap:
+		fallthrough
+	case FramebufferAttachmentType_Cubemap_Array:
 		return true
 
 	default:
@@ -172,7 +176,7 @@ func (fbo *Framebuffer) NewColorAttachment(
 		logging.ErrLog.Fatalf("failed creating color attachment for framebuffer due to unknown attachment type. Type=%d\n", attachType)
 	}
 
-	if attachType == FramebufferAttachmentType_Cubemap {
+	if attachType == FramebufferAttachmentType_Cubemap || attachType == FramebufferAttachmentType_Cubemap_Array {
 		logging.ErrLog.Fatalf("failed creating color attachment because cubemaps can not be color attachments (at least in this implementation. You might be able to do it manually)\n")
 	}
 
@@ -263,6 +267,10 @@ func (fbo *Framebuffer) NewDepthAttachment(
 		logging.ErrLog.Fatalf("failed creating depth attachment for framebuffer due to attachment data format not being a valid depth-stencil type. Data format=%d\n", attachFormat)
 	}
 
+	if attachType == FramebufferAttachmentType_Cubemap_Array {
+		logging.ErrLog.Fatalf("failed creating cubemap array depth attachment because 'NewDepthCubemapArrayAttachment' must be used for that\n")
+	}
+
 	a := FramebufferAttachment{
 		Type:   attachType,
 		Format: attachFormat,
@@ -342,6 +350,63 @@ func (fbo *Framebuffer) NewDepthAttachment(
 	fbo.Attachments = append(fbo.Attachments, a)
 }
 
+func (fbo *Framebuffer) NewDepthCubemapArrayAttachment(
+	attachFormat FramebufferAttachmentDataFormat,
+	numCubemaps int32,
+) {
+
+	if fbo.HasDepthAttachment() {
+		logging.ErrLog.Fatalf("failed creating cubemap array depth attachment for framebuffer because a depth attachment already exists\n")
+	}
+
+	if !attachFormat.IsDepthFormat() {
+		logging.ErrLog.Fatalf("failed creating depth attachment for framebuffer due to attachment data format not being a valid depth-stencil type. Data format=%d\n", attachFormat)
+	}
+
+	a := FramebufferAttachment{
+		Type:   FramebufferAttachmentType_Cubemap_Array,
+		Format: attachFormat,
+	}
+
+	fbo.Bind()
+
+	// Create cubemap array
+	gl.GenTextures(1, &a.Id)
+	if a.Id == 0 {
+		logging.ErrLog.Fatalf("failed to generate texture for framebuffer. GlError=%d\n", gl.GetError())
+	}
+
+	gl.BindTexture(gl.TEXTURE_CUBE_MAP_ARRAY, a.Id)
+
+	gl.TexImage3D(
+		gl.TEXTURE_CUBE_MAP_ARRAY,
+		0,
+		attachFormat.GlInternalFormat(),
+		int32(fbo.Width),
+		int32(fbo.Height),
+		6*numCubemaps,
+		0,
+		attachFormat.GlFormat(),
+		gl.FLOAT,
+		nil,
+	)
+
+	gl.TexParameteri(gl.TEXTURE_CUBE_MAP_ARRAY, gl.TEXTURE_MIN_FILTER, gl.NEAREST)
+	gl.TexParameteri(gl.TEXTURE_CUBE_MAP_ARRAY, gl.TEXTURE_MAG_FILTER, gl.NEAREST)
+	gl.TexParameteri(gl.TEXTURE_CUBE_MAP_ARRAY, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
+	gl.TexParameteri(gl.TEXTURE_CUBE_MAP_ARRAY, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
+	gl.TexParameteri(gl.TEXTURE_CUBE_MAP_ARRAY, gl.TEXTURE_WRAP_R, gl.CLAMP_TO_EDGE)
+
+	gl.BindTexture(gl.TEXTURE_2D, 0)
+
+	// Attach to fbo
+	gl.FramebufferTexture(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, a.Id, 0)
+
+	fbo.UnBind()
+	fbo.ClearFlags |= gl.DEPTH_BUFFER_BIT
+	fbo.Attachments = append(fbo.Attachments, a)
+}
+
 func (fbo *Framebuffer) NewDepthStencilAttachment(
 	attachType FramebufferAttachmentType,
 	attachFormat FramebufferAttachmentDataFormat,
@@ -403,6 +468,28 @@ func (fbo *Framebuffer) NewDepthStencilAttachment(
 	fbo.UnBind()
 	fbo.ClearFlags |= gl.DEPTH_BUFFER_BIT | gl.STENCIL_BUFFER_BIT
 	fbo.Attachments = append(fbo.Attachments, a)
+}
+
+// SetCubemapArrayLayerFace 'binds' a single face of a cubemap from the cubemap
+// array to the fbo, such that rendering only affects that one face and the others inaccessible.
+//
+// If this is not called, the default is that the entire cubemap array and all the faces in it
+// are bound and available for use when binding the fbo.
+func (fbo *Framebuffer) SetCubemapArrayLayerFace(layerFace int32) {
+
+	for i := 0; i < len(fbo.Attachments); i++ {
+
+		a := &fbo.Attachments[i]
+		if a.Type != FramebufferAttachmentType_Cubemap_Array {
+			continue
+		}
+
+		assert.T(a.Format.IsDepthFormat(), "SetCubemapFromArray called but a cubemap array is set on a color attachment, which is not currently handled. Code must be updated!")
+		gl.FramebufferTextureLayer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, a.Id, 0, layerFace)
+		return
+	}
+
+	logging.ErrLog.Fatalf("SetCubemapFromArray failed because no cubemap array attachment was found on fbo. Fbo=%+v\n", *fbo)
 }
 
 func (fbo *Framebuffer) Delete() {

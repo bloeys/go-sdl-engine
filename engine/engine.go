@@ -217,6 +217,7 @@ func createWindow(title string, x, y, width, height int32, flags WindowFlags, re
 	if err != nil {
 		return nil, err
 	}
+
 	win := &Window{
 		SDLWin:         sdlWin,
 		EventCallbacks: make([]func(sdl.Event), 0),
@@ -232,6 +233,10 @@ func createWindow(title string, x, y, width, height int32, flags WindowFlags, re
 	if err != nil {
 		return nil, err
 	}
+
+	// Get rid of the blinding white startup screen (unfortunately there is still one frame of white)
+	gl.Clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT | gl.STENCIL_BUFFER_BIT)
+	sdlWin.GLSwap()
 
 	return win, err
 }
@@ -254,6 +259,7 @@ func initOpenGL() error {
 	gl.BlendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA)
 
 	gl.ClearColor(0, 0, 0, 1)
+
 	return nil
 }
 

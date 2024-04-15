@@ -11,12 +11,13 @@ import (
 type TextureSlot uint32
 
 const (
-	TextureSlot_Diffuse   TextureSlot = 0
-	TextureSlot_Specular  TextureSlot = 1
-	TextureSlot_Normal    TextureSlot = 2
-	TextureSlot_Emission  TextureSlot = 3
-	TextureSlot_Cubemap   TextureSlot = 10
-	TextureSlot_ShadowMap TextureSlot = 11
+	TextureSlot_Diffuse       TextureSlot = 0
+	TextureSlot_Specular      TextureSlot = 1
+	TextureSlot_Normal        TextureSlot = 2
+	TextureSlot_Emission      TextureSlot = 3
+	TextureSlot_Cubemap       TextureSlot = 10
+	TextureSlot_ShadowMap     TextureSlot = 11
+	TextureSlot_Cubemap_Array TextureSlot = 12
 )
 
 type Material struct {
@@ -26,6 +27,7 @@ type Material struct {
 	UnifLocs   map[string]int32
 	AttribLocs map[string]int32
 
+	// @TODO do this in a better way. Perhaps something like how we do fbo attachments
 	// Phong shading
 	DiffuseTex  uint32
 	SpecularTex uint32
@@ -35,11 +37,12 @@ type Material struct {
 	// Shininess of specular highlights
 	Shininess float32
 
-	// Cubemap
-	CubemapTex uint32
+	// Cubemaps
+	CubemapTex      uint32
+	CubemapArrayTex uint32
 
 	// Shadowmaps
-	ShadowMap uint32
+	ShadowMapTex1 uint32
 }
 
 func (m *Material) Bind() {
@@ -71,9 +74,14 @@ func (m *Material) Bind() {
 		gl.BindTexture(gl.TEXTURE_CUBE_MAP, m.CubemapTex)
 	}
 
-	if m.ShadowMap != 0 {
+	if m.CubemapArrayTex != 0 {
+		gl.ActiveTexture(uint32(gl.TEXTURE0 + TextureSlot_Cubemap_Array))
+		gl.BindTexture(gl.TEXTURE_CUBE_MAP_ARRAY, m.CubemapArrayTex)
+	}
+
+	if m.ShadowMapTex1 != 0 {
 		gl.ActiveTexture(uint32(gl.TEXTURE0 + TextureSlot_ShadowMap))
-		gl.BindTexture(gl.TEXTURE_2D, m.ShadowMap)
+		gl.BindTexture(gl.TEXTURE_2D, m.ShadowMapTex1)
 	}
 }
 
