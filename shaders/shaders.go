@@ -3,6 +3,7 @@ package shaders
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"os"
 	"strings"
 
@@ -11,12 +12,13 @@ import (
 )
 
 type Shader struct {
-	ID         uint32
-	ShaderType ShaderType
+	Id   uint32
+	Type ShaderType
 }
 
-func (s Shader) Delete() {
-	gl.DeleteShader(s.ID)
+func (s *Shader) Delete() {
+	gl.DeleteShader(s.Id)
+	s.Id = 0
 }
 
 func NewShaderProgram() (ShaderProgram, error) {
@@ -26,7 +28,7 @@ func NewShaderProgram() (ShaderProgram, error) {
 		return ShaderProgram{}, errors.New("failed to create shader program")
 	}
 
-	return ShaderProgram{ID: id}, nil
+	return ShaderProgram{Id: id}, nil
 }
 
 func LoadAndCompileCombinedShader(shaderPath string) (ShaderProgram, error) {
@@ -43,8 +45,8 @@ func LoadAndCompileCombinedShader(shaderPath string) (ShaderProgram, error) {
 func LoadAndCompileCombinedShaderSrc(shaderSrc []byte) (ShaderProgram, error) {
 
 	shaderSources := bytes.Split(shaderSrc, []byte("//shader:"))
-	if len(shaderSources) == 1 {
-		return ShaderProgram{}, errors.New("failed to read combined shader. Did not find '//shader:vertex' or '//shader:fragment'")
+	if len(shaderSources) < 2 {
+		return ShaderProgram{}, errors.New("failed to read combined shader. The minimum shader types to have are '//shader:vertex' and '//shader:fragment'")
 	}
 
 	shdrProg, err := NewShaderProgram()
@@ -65,12 +67,15 @@ func LoadAndCompileCombinedShaderSrc(shaderSrc []byte) (ShaderProgram, error) {
 		var shdrType ShaderType
 		if bytes.HasPrefix(src, []byte("vertex")) {
 			src = src[6:]
-			shdrType = VertexShaderType
+			shdrType = ShaderType_Vertex
 		} else if bytes.HasPrefix(src, []byte("fragment")) {
 			src = src[8:]
-			shdrType = FragmentShaderType
+			shdrType = ShaderType_Fragment
+		} else if bytes.HasPrefix(src, []byte("geometry")) {
+			src = src[8:]
+			shdrType = ShaderType_Geometry
 		} else {
-			return ShaderProgram{}, errors.New("unknown shader type. Must be '//shader:vertex' or '//shader:fragment'")
+			return ShaderProgram{}, errors.New("unknown shader type. Must be '//shader:vertex' or '//shader:fragment' or '//shader:geometry'")
 		}
 
 		shdr, err := CompileShaderOfType(src, shdrType)
@@ -83,7 +88,15 @@ func LoadAndCompileCombinedShaderSrc(shaderSrc []byte) (ShaderProgram, error) {
 	}
 
 	if loadedShdrCount == 0 {
-		return ShaderProgram{}, errors.New("no valid shaders found. Please put '//shader:vertex' or '//shader:fragment' before your shaders")
+		return ShaderProgram{}, errors.New("no valid shaders found. Please put '//shader:vertex' or '//shader:fragment' or '//shader:geometry' before your shaders")
+	}
+
+	if shdrProg.VertShaderId == 0 {
+		return ShaderProgram{}, errors.New("no valid vertex shader found. Please put '//shader:vertex' before your vertex shader")
+	}
+
+	if shdrProg.FragShaderId == 0 {
+		return ShaderProgram{}, errors.New("no valid fragment shader found. Please put '//shader:fragment' before your vertex shader")
 	}
 
 	shdrProg.Link()
@@ -92,41 +105,40 @@ func LoadAndCompileCombinedShaderSrc(shaderSrc []byte) (ShaderProgram, error) {
 
 func CompileShaderOfType(shaderSource []byte, shaderType ShaderType) (Shader, error) {
 
-	shaderID := gl.CreateShader(uint32(shaderType))
-	if shaderID == 0 {
-		logging.ErrLog.Println("Failed to create shader.")
-		return Shader{}, errors.New("failed to create shader")
+	shaderId := gl.CreateShader(shaderType.ToGl())
+	if shaderId == 0 {
+		return Shader{}, fmt.Errorf("failed to create OpenGl shader. OpenGl Error=%d", gl.GetError())
 	}
 
 	//Load shader source and compile
 	shaderCStr, shaderFree := gl.Strs(string(shaderSource) + "\x00")
 	defer shaderFree()
-	gl.ShaderSource(shaderID, 1, shaderCStr, nil)
+	gl.ShaderSource(shaderId, 1, shaderCStr, nil)
 
-	gl.CompileShader(shaderID)
-	if err := getShaderCompileErrors(shaderID); err != nil {
-		gl.DeleteShader(shaderID)
+	gl.CompileShader(shaderId)
+	if err := getShaderCompileErrors(shaderId); err != nil {
+		gl.DeleteShader(shaderId)
 		return Shader{}, err
 	}
 
-	return Shader{ID: shaderID, ShaderType: shaderType}, nil
+	return Shader{Id: shaderId, Type: shaderType}, nil
 }
 
-func getShaderCompileErrors(shaderID uint32) error {
+func getShaderCompileErrors(shaderId uint32) error {
 
 	var compiledSuccessfully int32
-	gl.GetShaderiv(shaderID, gl.COMPILE_STATUS, &compiledSuccessfully)
+	gl.GetShaderiv(shaderId, gl.COMPILE_STATUS, &compiledSuccessfully)
 	if compiledSuccessfully == gl.TRUE {
 		return nil
 	}
 
 	var logLength int32
-	gl.GetShaderiv(shaderID, gl.INFO_LOG_LENGTH, &logLength)
+	gl.GetShaderiv(shaderId, gl.INFO_LOG_LENGTH, &logLength)
 
 	log := gl.Str(strings.Repeat("\x00", int(logLength)))
-	gl.GetShaderInfoLog(shaderID, logLength, nil, log)
+	gl.GetShaderInfoLog(shaderId, logLength, nil, log)
 
 	errMsg := gl.GoStr(log)
-	logging.ErrLog.Println("Compilation of shader with id ", shaderID, " failed. Err: ", errMsg)
+	logging.ErrLog.Println("Compilation of shader with id ", shaderId, " failed. Err: ", errMsg)
 	return errors.New(errMsg)
 }

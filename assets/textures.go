@@ -19,7 +19,8 @@ import (
 type ColorFormat int
 
 const (
-	ColorFormat_RGBA8 ColorFormat = iota
+	ColorFormat_Unknown ColorFormat = iota
+	ColorFormat_RGBA8
 )
 
 type Texture struct {

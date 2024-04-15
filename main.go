@@ -30,6 +30,9 @@ import (
 		- Directional lights ✅
 		- Point lights ✅
 		- Spotlights ✅
+		- Directional light shadows ✅
+		- Point light shadows
+		- Spotlight shadows
 		- HDR
 		- Cascaded shadow mapping
 		- Skeletal animations
@@ -83,6 +86,28 @@ type PointLight struct {
 	Constant  float32
 	Linear    float32
 	Quadratic float32
+}
+
+var (
+	pointLightNear float32 = 1
+	pointLightFar  float32 = 25
+)
+
+func (p *PointLight) GetProjViewMats(shadowMapWidth, shadowMapHeight float32) [6]gglm.Mat4 {
+
+	aspect := float32(shadowMapWidth) / float32(shadowMapHeight)
+	projMat := gglm.Perspective(90*gglm.Deg2Rad, aspect, pointLightNear, pointLightFar)
+
+	projViewMats := [6]gglm.Mat4{
+		*projMat.Clone().Mul(&gglm.LookAtRH(&p.Pos, gglm.NewVec3(1, 0, 0).Add(&p.Pos), gglm.NewVec3(0, -1, 0)).Mat4),
+		*projMat.Clone().Mul(&gglm.LookAtRH(&p.Pos, gglm.NewVec3(-1, 0, 0).Add(&p.Pos), gglm.NewVec3(0, -1, 0)).Mat4),
+		*projMat.Clone().Mul(&gglm.LookAtRH(&p.Pos, gglm.NewVec3(0, 1, 0).Add(&p.Pos), gglm.NewVec3(0, 0, 1)).Mat4),
+		*projMat.Clone().Mul(&gglm.LookAtRH(&p.Pos, gglm.NewVec3(0, -1, 0).Add(&p.Pos), gglm.NewVec3(0, 0, -1)).Mat4),
+		*projMat.Clone().Mul(&gglm.LookAtRH(&p.Pos, gglm.NewVec3(0, 0, 1).Add(&p.Pos), gglm.NewVec3(0, -1, 0)).Mat4),
+		*projMat.Clone().Mul(&gglm.LookAtRH(&p.Pos, gglm.NewVec3(0, 0, -1).Add(&p.Pos), gglm.NewVec3(0, -1, 0)).Mat4),
+	}
+
+	return projViewMats
 }
 
 type SpotLight struct {
@@ -141,6 +166,7 @@ var (
 	palleteMat          *materials.Material
 	skyboxMat           *materials.Material
 	dirLightDepthMapMat *materials.Material
+	omnidirDepthMapMat  *materials.Material
 	debugDepthMat       *materials.Material
 
 	cubeMesh   *meshes.Mesh
@@ -437,7 +463,9 @@ func (g *Game) Init() {
 
 	debugDepthMat = materials.NewMaterial("Debug depth mat", "./res/shaders/debug-depth.glsl")
 
-	dirLightDepthMapMat = materials.NewMaterial("Depth Map mat", "./res/shaders/depth-map.glsl")
+	dirLightDepthMapMat = materials.NewMaterial("Directional Depth Map mat", "./res/shaders/directional-depth-map.glsl")
+
+	omnidirDepthMapMat = materials.NewMaterial("Omnidirectional Depth Map mat", "./res/shaders/omnidirectional-depth-map.glsl")
 
 	skyboxMat = materials.NewMaterial("Skybox mat", "./res/shaders/skybox.glsl")
 	skyboxMat.CubemapTex = skyboxCmap.TexID

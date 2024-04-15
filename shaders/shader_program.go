@@ -6,32 +6,48 @@ import (
 )
 
 type ShaderProgram struct {
-	ID           uint32
-	VertShaderID uint32
-	FragShaderID uint32
+	Id           uint32
+	VertShaderId uint32
+	FragShaderId uint32
+	GeomShaderId uint32
 }
 
 func (sp *ShaderProgram) AttachShader(shader Shader) {
 
-	gl.AttachShader(sp.ID, shader.ID)
-	switch shader.ShaderType {
-	case VertexShaderType:
-		sp.VertShaderID = shader.ID
-	case FragmentShaderType:
-		sp.FragShaderID = shader.ID
+	gl.AttachShader(sp.Id, shader.Id)
+	switch shader.Type {
+	case ShaderType_Vertex:
+		sp.VertShaderId = shader.Id
+	case ShaderType_Fragment:
+		sp.FragShaderId = shader.Id
+	case ShaderType_Geometry:
+		sp.GeomShaderId = shader.Id
 	default:
-		logging.ErrLog.Println("Unknown shader type ", shader.ShaderType, " for ID ", shader.ID)
+		logging.ErrLog.Fatalf("Unknown shader type '%d' for shader id '%d'\n", shader.Type, shader.Id)
 	}
 }
 
 func (sp *ShaderProgram) Link() {
 
-	gl.LinkProgram(sp.ID)
+	gl.LinkProgram(sp.Id)
 
-	if sp.VertShaderID != 0 {
-		gl.DeleteShader(sp.VertShaderID)
+	if sp.VertShaderId != 0 {
+		gl.DeleteShader(sp.VertShaderId)
 	}
-	if sp.FragShaderID != 0 {
-		gl.DeleteShader(sp.FragShaderID)
+
+	if sp.FragShaderId != 0 {
+		gl.DeleteShader(sp.FragShaderId)
 	}
+
+	if sp.GeomShaderId != 0 {
+		gl.DeleteShader(sp.GeomShaderId)
+	}
+}
+
+func (s *ShaderProgram) Bind() {
+	gl.UseProgram(s.Id)
+}
+
+func (s *ShaderProgram) UnBind() {
+	gl.UseProgram(0)
 }

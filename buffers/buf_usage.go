@@ -10,8 +10,10 @@ import (
 type BufUsage int
 
 const (
+	BufUsage_Unknown BufUsage = iota
+
 	//Buffer is set only once and used many times
-	BufUsage_Static BufUsage = iota
+	BufUsage_Static
 	//Buffer is changed a lot and used many times
 	BufUsage_Dynamic
 	//Buffer is set only once and used by the GPU at most a few times

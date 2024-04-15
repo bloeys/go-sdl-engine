@@ -44,7 +44,7 @@ type Material struct {
 
 func (m *Material) Bind() {
 
-	gl.UseProgram(m.ShaderProg.ID)
+	m.ShaderProg.Bind()
 
 	if m.DiffuseTex != 0 {
 		gl.ActiveTexture(uint32(gl.TEXTURE0 + TextureSlot_Diffuse))
@@ -88,7 +88,7 @@ func (m *Material) GetAttribLoc(attribName string) int32 {
 		return loc
 	}
 
-	loc = gl.GetAttribLocation(m.ShaderProg.ID, gl.Str(attribName+"\x00"))
+	loc = gl.GetAttribLocation(m.ShaderProg.Id, gl.Str(attribName+"\x00"))
 	assert.T(loc != -1, "Attribute '"+attribName+"' doesn't exist on material "+m.Name)
 	m.AttribLocs[attribName] = loc
 	return loc
@@ -101,7 +101,7 @@ func (m *Material) GetUnifLoc(uniformName string) int32 {
 		return loc
 	}
 
-	loc = gl.GetUniformLocation(m.ShaderProg.ID, gl.Str(uniformName+"\x00"))
+	loc = gl.GetUniformLocation(m.ShaderProg.Id, gl.Str(uniformName+"\x00"))
 	assert.T(loc != -1, "Uniform '"+uniformName+"' doesn't exist on material "+m.Name)
 	m.UnifLocs[uniformName] = loc
 	return loc
@@ -116,39 +116,39 @@ func (m *Material) DisableAttribute(attribName string) {
 }
 
 func (m *Material) SetUnifInt32(uniformName string, val int32) {
-	gl.ProgramUniform1i(m.ShaderProg.ID, m.GetUnifLoc(uniformName), val)
+	gl.ProgramUniform1i(m.ShaderProg.Id, m.GetUnifLoc(uniformName), val)
 }
 
 func (m *Material) SetUnifFloat32(uniformName string, val float32) {
-	gl.ProgramUniform1f(m.ShaderProg.ID, m.GetUnifLoc(uniformName), val)
+	gl.ProgramUniform1f(m.ShaderProg.Id, m.GetUnifLoc(uniformName), val)
 }
 
 func (m *Material) SetUnifVec2(uniformName string, vec2 *gglm.Vec2) {
-	gl.ProgramUniform2fv(m.ShaderProg.ID, m.GetUnifLoc(uniformName), 1, &vec2.Data[0])
+	gl.ProgramUniform2fv(m.ShaderProg.Id, m.GetUnifLoc(uniformName), 1, &vec2.Data[0])
 }
 
 func (m *Material) SetUnifVec3(uniformName string, vec3 *gglm.Vec3) {
-	gl.ProgramUniform3fv(m.ShaderProg.ID, m.GetUnifLoc(uniformName), 1, &vec3.Data[0])
+	gl.ProgramUniform3fv(m.ShaderProg.Id, m.GetUnifLoc(uniformName), 1, &vec3.Data[0])
 }
 
 func (m *Material) SetUnifVec4(uniformName string, vec4 *gglm.Vec4) {
-	gl.ProgramUniform4fv(m.ShaderProg.ID, m.GetUnifLoc(uniformName), 1, &vec4.Data[0])
+	gl.ProgramUniform4fv(m.ShaderProg.Id, m.GetUnifLoc(uniformName), 1, &vec4.Data[0])
 }
 
 func (m *Material) SetUnifMat2(uniformName string, mat2 *gglm.Mat2) {
-	gl.ProgramUniformMatrix2fv(m.ShaderProg.ID, m.GetUnifLoc(uniformName), 1, false, &mat2.Data[0][0])
+	gl.ProgramUniformMatrix2fv(m.ShaderProg.Id, m.GetUnifLoc(uniformName), 1, false, &mat2.Data[0][0])
 }
 
 func (m *Material) SetUnifMat3(uniformName string, mat3 *gglm.Mat3) {
-	gl.ProgramUniformMatrix3fv(m.ShaderProg.ID, m.GetUnifLoc(uniformName), 1, false, &mat3.Data[0][0])
+	gl.ProgramUniformMatrix3fv(m.ShaderProg.Id, m.GetUnifLoc(uniformName), 1, false, &mat3.Data[0][0])
 }
 
 func (m *Material) SetUnifMat4(uniformName string, mat4 *gglm.Mat4) {
-	gl.ProgramUniformMatrix4fv(m.ShaderProg.ID, m.GetUnifLoc(uniformName), 1, false, &mat4.Data[0][0])
+	gl.ProgramUniformMatrix4fv(m.ShaderProg.Id, m.GetUnifLoc(uniformName), 1, false, &mat4.Data[0][0])
 }
 
 func (m *Material) Delete() {
-	gl.DeleteProgram(m.ShaderProg.ID)
+	gl.DeleteProgram(m.ShaderProg.Id)
 }
 
 func NewMaterial(matName, shaderPath string) *Material {
