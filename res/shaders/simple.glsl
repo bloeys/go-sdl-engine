@@ -6,15 +6,19 @@ layout(location=1) in vec3 vertNormalIn;
 layout(location=2) in vec2 vertUV0In;
 layout(location=3) in vec3 vertColorIn;
 
+uniform mat4 modelMat;
+uniform mat4 projViewMat;
+uniform mat4 dirLightProjViewMat;
+
+#define NUM_SPOT_LIGHTS 4
+uniform mat4 spotLightProjViewMats[NUM_SPOT_LIGHTS];
+
 out vec3 vertNormal;
 out vec2 vertUV0;
 out vec3 vertColor;
 out vec3 fragPos;
 out vec4 fragPosDirLight;
-
-uniform mat4 modelMat;
-uniform mat4 projViewMat;
-uniform mat4 dirLightProjViewMat;
+out vec4 fragPosSpotLight[NUM_SPOT_LIGHTS];
 
 void main()
 {
@@ -30,6 +34,9 @@ void main()
     vec4 modelVert = modelMat * vec4(vertPosIn, 1);
     fragPos = modelVert.xyz;
     fragPosDirLight = dirLightProjViewMat * vec4(fragPos, 1);
+
+    for (int i = 0; i < NUM_SPOT_LIGHTS; i++)
+        fragPosSpotLight[i] = spotLightProjViewMats[i] * vec4(fragPos, 1);
 
     gl_Position = projViewMat * modelVert;
 }
@@ -81,6 +88,7 @@ struct SpotLight {
 
 #define NUM_SPOT_LIGHTS 4
 uniform SpotLight spotLights[NUM_SPOT_LIGHTS];
+uniform sampler2DArray spotLightShadowMaps;
 
 uniform vec3 camPos;
 uniform vec3 ambientColor = vec3(0.2, 0.2, 0.2);
@@ -90,6 +98,7 @@ in vec3 vertNormal;
 in vec2 vertUV0;
 in vec3 fragPos;
 in vec4 fragPosDirLight;
+in vec4 fragPosSpotLight[NUM_SPOT_LIGHTS];
 
 out vec4 fragColor;
 
@@ -123,9 +132,9 @@ float CalcDirShadow(sampler2D shadowMap, vec3 lightDir)
     // Basically get soft shadows by averaging this texel and surrounding ones
     float shadow = 0;
     vec2 texelSize = 1 / textureSize(shadowMap, 0);
-    for(int x = -1; x <= 1; ++x)
+    for(int x = -1; x <= 1; x++)
     {
-        for(int y = -1; y <= 1; ++y)
+        for(int y = -1; y <= 1; y++)
         {
             float pcfDepth = texture(shadowMap, projCoords.xy + vec2(x, y) * texelSize).r; 
 
@@ -205,7 +214,47 @@ vec3 CalcPointLight(PointLight pointLight, int lightIndex)
     return (finalDiffuse + finalSpecular) * attenuation * (1 - shadow);
 }
 
-vec3 CalcSpotLight(SpotLight light)
+float CalcSpotShadow(vec3 lightDir, int lightIndex)
+{
+    // Move from clip space to NDC
+    vec3 projCoords = fragPosSpotLight[lightIndex].xyz / fragPosSpotLight[lightIndex].w;
+
+    // Move from [-1,1] to [0, 1]
+    projCoords = projCoords * 0.5 + 0.5;
+
+    // If sampling outside the depth texture then force 'no shadow'
+    if(projCoords.z > 1)
+        return 0;
+
+    // currentDepth is the fragment depth from the light's perspective
+    float currentDepth = projCoords.z;
+
+    // Bias in the range [0.005, 0.05] depending on the angle, where a higher
+    // angle gives a higher bias, as shadow acne gets worse with angle
+    float bias = max(0.05 * (1 - dot(normalizedVertNorm, lightDir)), 0.005);
+
+    // 'Percentage Close Filtering'.
+    // Basically get soft shadows by averaging this texel and surrounding ones
+    float shadow = 0;
+    vec2 texelSize = 1 / textureSize(spotLightShadowMaps, 0).xy;
+    for(int x = -1; x <= 1; x++)
+    {
+        for(int y = -1; y <= 1; y++)
+        {
+            float pcfDepth = texture(spotLightShadowMaps, vec3(projCoords.xy + vec2(x, y) * texelSize, lightIndex)).r; 
+
+            // If our depth is larger than the lights closest depth at the texel we checked (projCoords),
+            // then there is something closer to the light than us, and so we are in shadow
+            shadow += currentDepth - bias > pcfDepth ? 1 : 0;
+        }
+    }
+
+    shadow /= 9;
+
+    return shadow;
+}
+
+vec3 CalcSpotLight(SpotLight light, int lightIndex)
 {
     if (light.innerCutoff == 0)
         return vec3(0);
@@ -231,7 +280,10 @@ vec3 CalcSpotLight(SpotLight light)
     float specularAmount = pow(max(dot(normalizedVertNorm, halfwayDir), 0.0), material.shininess);
     vec3 finalSpecular = specularAmount * light.specularColor * specularTexColor.rgb;
 
-    return (finalDiffuse + finalSpecular) * intensity;
+    // Shadow
+    float shadow = CalcSpotShadow(fragToLightDir, lightIndex);
+
+    return (finalDiffuse + finalSpecular) * intensity * (1 - shadow);
 }
 
 void main()
@@ -254,7 +306,7 @@ void main()
 
     for (int i = 0; i < NUM_SPOT_LIGHTS; i++)
     {
-        finalColor += CalcSpotLight(spotLights[i]);
+        finalColor += CalcSpotLight(spotLights[i], i);
     }
 
     vec3 finalEmission = emissionTexColor.rgb;

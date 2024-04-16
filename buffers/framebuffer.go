@@ -11,6 +11,7 @@ type FramebufferAttachmentType int32
 const (
 	FramebufferAttachmentType_Unknown FramebufferAttachmentType = iota
 	FramebufferAttachmentType_Texture
+	FramebufferAttachmentType_Texture_Array
 	FramebufferAttachmentType_Renderbuffer
 	FramebufferAttachmentType_Cubemap
 	FramebufferAttachmentType_Cubemap_Array
@@ -20,6 +21,8 @@ func (f FramebufferAttachmentType) IsValid() bool {
 
 	switch f {
 	case FramebufferAttachmentType_Texture:
+		fallthrough
+	case FramebufferAttachmentType_Texture_Array:
 		fallthrough
 	case FramebufferAttachmentType_Renderbuffer:
 		fallthrough
@@ -180,6 +183,10 @@ func (fbo *Framebuffer) NewColorAttachment(
 		logging.ErrLog.Fatalf("failed creating color attachment because cubemaps can not be color attachments (at least in this implementation. You might be able to do it manually)\n")
 	}
 
+	if attachType == FramebufferAttachmentType_Texture_Array {
+		logging.ErrLog.Fatalf("failed creating color attachment because texture arrays can not be color attachments (implementation can be updated to support it or you can do it manually)\n")
+	}
+
 	if !attachFormat.IsColorFormat() {
 		logging.ErrLog.Fatalf("failed creating color attachment for framebuffer due to attachment data format not being a valid color type. Data format=%d\n", attachFormat)
 	}
@@ -269,6 +276,10 @@ func (fbo *Framebuffer) NewDepthAttachment(
 
 	if attachType == FramebufferAttachmentType_Cubemap_Array {
 		logging.ErrLog.Fatalf("failed creating cubemap array depth attachment because 'NewDepthCubemapArrayAttachment' must be used for that\n")
+	}
+
+	if attachType == FramebufferAttachmentType_Texture_Array {
+		logging.ErrLog.Fatalf("failed creating texture array depth attachment because 'NewDepthTextureArrayAttachment' must be used for that\n")
 	}
 
 	a := FramebufferAttachment{
@@ -398,6 +409,68 @@ func (fbo *Framebuffer) NewDepthCubemapArrayAttachment(
 	gl.TexParameteri(gl.TEXTURE_CUBE_MAP_ARRAY, gl.TEXTURE_WRAP_R, gl.CLAMP_TO_EDGE)
 
 	gl.BindTexture(gl.TEXTURE_2D, 0)
+
+	// Attach to fbo
+	gl.FramebufferTexture(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, a.Id, 0)
+
+	fbo.UnBind()
+	fbo.ClearFlags |= gl.DEPTH_BUFFER_BIT
+	fbo.Attachments = append(fbo.Attachments, a)
+}
+
+func (fbo *Framebuffer) NewDepthTextureArrayAttachment(
+	attachFormat FramebufferAttachmentDataFormat,
+	numTextures int32,
+) {
+
+	if fbo.HasDepthAttachment() {
+		logging.ErrLog.Fatalf("failed creating texture array depth attachment for framebuffer because a depth attachment already exists\n")
+	}
+
+	if !attachFormat.IsDepthFormat() {
+		logging.ErrLog.Fatalf("failed creating depth attachment for framebuffer due to attachment data format not being a valid depth-stencil type. Data format=%d\n", attachFormat)
+	}
+
+	a := FramebufferAttachment{
+		Type:   FramebufferAttachmentType_Texture_Array,
+		Format: attachFormat,
+	}
+
+	fbo.Bind()
+
+	// Create cubemap array
+	gl.GenTextures(1, &a.Id)
+	if a.Id == 0 {
+		logging.ErrLog.Fatalf("failed to generate texture for framebuffer. GlError=%d\n", gl.GetError())
+	}
+
+	gl.BindTexture(gl.TEXTURE_2D_ARRAY, a.Id)
+
+	gl.TexImage3D(
+		gl.TEXTURE_2D_ARRAY,
+		0,
+		attachFormat.GlInternalFormat(),
+		int32(fbo.Width),
+		int32(fbo.Height),
+		numTextures,
+		0,
+		attachFormat.GlFormat(),
+		gl.FLOAT,
+		nil,
+	)
+
+	gl.TexParameteri(gl.TEXTURE_2D_ARRAY, gl.TEXTURE_MIN_FILTER, gl.NEAREST)
+	gl.TexParameteri(gl.TEXTURE_2D_ARRAY, gl.TEXTURE_MAG_FILTER, gl.NEAREST)
+
+	// This is so that any sampling outside the depth map gives a full depth value.
+	// Useful for example when doing shadow maps where we want things outside
+	// the range of the texture to not show shadow
+	borderColor := []float32{1, 1, 1, 1}
+	gl.TexParameterfv(gl.TEXTURE_2D_ARRAY, gl.TEXTURE_BORDER_COLOR, &borderColor[0])
+	gl.TexParameteri(gl.TEXTURE_2D_ARRAY, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_BORDER)
+	gl.TexParameteri(gl.TEXTURE_2D_ARRAY, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_BORDER)
+
+	gl.BindTexture(gl.TEXTURE_2D_ARRAY, 0)
 
 	// Attach to fbo
 	gl.FramebufferTexture(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, a.Id, 0)

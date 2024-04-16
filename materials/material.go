@@ -11,13 +11,14 @@ import (
 type TextureSlot uint32
 
 const (
-	TextureSlot_Diffuse       TextureSlot = 0
-	TextureSlot_Specular      TextureSlot = 1
-	TextureSlot_Normal        TextureSlot = 2
-	TextureSlot_Emission      TextureSlot = 3
-	TextureSlot_Cubemap       TextureSlot = 10
-	TextureSlot_ShadowMap     TextureSlot = 11
-	TextureSlot_Cubemap_Array TextureSlot = 12
+	TextureSlot_Diffuse          TextureSlot = 0
+	TextureSlot_Specular         TextureSlot = 1
+	TextureSlot_Normal           TextureSlot = 2
+	TextureSlot_Emission         TextureSlot = 3
+	TextureSlot_Cubemap          TextureSlot = 10
+	TextureSlot_Cubemap_Array    TextureSlot = 11
+	TextureSlot_ShadowMap1       TextureSlot = 12
+	TextureSlot_ShadowMap_Array1 TextureSlot = 13
 )
 
 type Material struct {
@@ -42,7 +43,8 @@ type Material struct {
 	CubemapArrayTex uint32
 
 	// Shadowmaps
-	ShadowMapTex1 uint32
+	ShadowMapTex1      uint32
+	ShadowMapTexArray1 uint32
 }
 
 func (m *Material) Bind() {
@@ -80,8 +82,13 @@ func (m *Material) Bind() {
 	}
 
 	if m.ShadowMapTex1 != 0 {
-		gl.ActiveTexture(uint32(gl.TEXTURE0 + TextureSlot_ShadowMap))
+		gl.ActiveTexture(uint32(gl.TEXTURE0 + TextureSlot_ShadowMap1))
 		gl.BindTexture(gl.TEXTURE_2D, m.ShadowMapTex1)
+	}
+
+	if m.ShadowMapTexArray1 != 0 {
+		gl.ActiveTexture(uint32(gl.TEXTURE0 + TextureSlot_ShadowMap_Array1))
+		gl.BindTexture(gl.TEXTURE_2D_ARRAY, m.ShadowMapTexArray1)
 	}
 }
 
