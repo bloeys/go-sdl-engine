@@ -33,25 +33,12 @@ type Window struct {
 
 func (w *Window) handleInputs() {
 
-	input.EventLoopStart()
 	imIo := imgui.CurrentIO()
 
 	imguiCaptureMouse := imIo.WantCaptureMouse()
 	imguiCaptureKeyboard := imIo.WantCaptureKeyboard()
 
-	// These two are to fix a bug where state isn't cleared
-	// even after imgui captures the keyboard/mouse.
-	//
-	// For example, if player is moving due to key held and then imgui captures the keyboard,
-	// the player keeps moving even when the key is no longer pressed because the input system never
-	// receives the key up event.
-	if imguiCaptureMouse {
-		input.ClearMouseState()
-	}
-
-	if imguiCaptureKeyboard {
-		input.ClearKeyboardState()
-	}
+	input.EventLoopStart(imguiCaptureMouse, imguiCaptureKeyboard)
 
 	for event := sdl.PollEvent(); event != nil; event = sdl.PollEvent() {
 
@@ -65,18 +52,12 @@ func (w *Window) handleInputs() {
 
 		case *sdl.MouseWheelEvent:
 
-			if !imguiCaptureMouse {
-				input.HandleMouseWheelEvent(e)
-			}
-
+			input.HandleMouseWheelEvent(e)
 			imIo.AddMouseWheelDelta(float32(e.X), float32(e.Y))
 
 		case *sdl.KeyboardEvent:
 
-			if !imguiCaptureKeyboard {
-				input.HandleKeyboardEvent(e)
-			}
-
+			input.HandleKeyboardEvent(e)
 			imIo.AddKeyEvent(nmageimgui.SdlScancodeToImGuiKey(e.Keysym.Scancode), e.Type == sdl.KEYDOWN)
 
 			// Send modifier key updates to imgui
@@ -101,10 +82,7 @@ func (w *Window) handleInputs() {
 
 		case *sdl.MouseButtonEvent:
 
-			if !imguiCaptureMouse {
-				input.HandleMouseBtnEvent(e)
-			}
-
+			input.HandleMouseBtnEvent(e)
 			isPressed := e.State == sdl.PRESSED
 
 			if e.Button == sdl.BUTTON_LEFT {
@@ -117,9 +95,7 @@ func (w *Window) handleInputs() {
 
 		case *sdl.MouseMotionEvent:
 
-			if !imguiCaptureMouse {
-				input.HandleMouseMotionEvent(e)
-			}
+			input.HandleMouseMotionEvent(e)
 
 		case *sdl.WindowEvent:
 

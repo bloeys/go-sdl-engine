@@ -1,6 +1,23 @@
+// The input package provides an interface to mouse and keyboard inputs
+// like key clicks and releases, along with some higher level constructs like
+// pressed/released this frames, double clicks, and normalized inputs.
+//
+// The input package has two sets of functions for most cases, where one
+// is in the form 'xy' and the other 'xyCaptured'. The captured form
+// always returns normal events even if the mouse or keyboard are captured
+// by the UI system. The 'xy' form however will return zero/false if the
+// respective input device is currently captured (with the exception of mouse position, that is always correctly returned).
+//
+// For most cases, you want to use the 'xy' form. For example, you only want to receive
+// key down events for game character movement when the UI isn't capturing the keyboard,
+// because otherwise the character will move while typing in a UI textbox.
+//
+// The functions IsMouseCaptured and IsKeyboardCaptured are also available.
 package input
 
-import "github.com/veandco/go-sdl2/sdl"
+import (
+	"github.com/veandco/go-sdl2/sdl"
+)
 
 type keyState struct {
 	Key                 sdl.Keycode
@@ -31,15 +48,22 @@ type mouseWheelState struct {
 }
 
 var (
-	keyMap        = make(map[sdl.Keycode]keyState)
-	mouseBtnMap   = make(map[int]mouseBtnState)
-	mouseMotion   = mouseMotionState{}
-	mouseWheel    = mouseWheelState{}
-	quitRequested bool
+	mouseWheel  = mouseWheelState{}
+	mouseMotion = mouseMotionState{}
+	mouseBtnMap = make(map[int]mouseBtnState)
+	keyMap      = make(map[sdl.Keycode]keyState)
+
+	isQuitRequested    bool
+	isMouseCaptured    bool
+	isKeyboardCaptured bool
 )
 
-func EventLoopStart() {
+func EventLoopStart(mouseGotCaptured, keyboardGotCaptured bool) {
 
+	isMouseCaptured = mouseGotCaptured
+	isKeyboardCaptured = keyboardGotCaptured
+
+	// Update per-frame state
 	for k, v := range keyMap {
 		v.IsPressedThisFrame = false
 		v.IsReleasedThisFrame = false
@@ -59,7 +83,7 @@ func EventLoopStart() {
 	mouseWheel.XDelta = 0
 	mouseWheel.YDelta = 0
 
-	quitRequested = false
+	isQuitRequested = false
 }
 
 func ClearKeyboardState() {
@@ -73,11 +97,19 @@ func ClearMouseState() {
 }
 
 func HandleQuitEvent(e *sdl.QuitEvent) {
-	quitRequested = true
+	isQuitRequested = true
+}
+
+func IsMouseCaptured() bool {
+	return isMouseCaptured
+}
+
+func IsKeyboardCaptured() bool {
+	return isKeyboardCaptured
 }
 
 func IsQuitClicked() bool {
-	return quitRequested
+	return isQuitRequested
 }
 
 func HandleKeyboardEvent(e *sdl.KeyboardEvent) {
@@ -123,17 +155,35 @@ func HandleMouseWheelEvent(e *sdl.MouseWheelEvent) {
 	mouseWheel.YDelta = e.Y
 }
 
-// GetMousePos returns the window coordinates of the mouse
+// GetMousePos returns the window coordinates of the mouse regardless of whether the mouse is captured or not
 func GetMousePos() (x, y int32) {
 	return mouseMotion.XPos, mouseMotion.YPos
 }
 
 // GetMouseMotion returns how many pixels were moved last frame
 func GetMouseMotion() (xDelta, yDelta int32) {
+
+	if isMouseCaptured {
+		return 0, 0
+	}
+
+	return GetMouseMotionCaptured()
+}
+
+func GetMouseMotionCaptured() (xDelta, yDelta int32) {
 	return mouseMotion.XDelta, mouseMotion.YDelta
 }
 
 func GetMouseMotionNorm() (xDelta, yDelta int32) {
+
+	if isMouseCaptured {
+		return 0, 0
+	}
+
+	return GetMouseMotionNormCaptured()
+}
+
+func GetMouseMotionNormCaptured() (xDelta, yDelta int32) {
 
 	x, y := mouseMotion.XDelta, mouseMotion.YDelta
 	if x > 0 {
@@ -152,11 +202,30 @@ func GetMouseMotionNorm() (xDelta, yDelta int32) {
 }
 
 func GetMouseWheelMotion() (xDelta, yDelta int32) {
+
+	if isMouseCaptured {
+		return 0, 0
+	}
+
+	return GetMouseWheelMotionCaptured()
+}
+
+func GetMouseWheelMotionCaptured() (xDelta, yDelta int32) {
 	return mouseWheel.XDelta, mouseWheel.YDelta
 }
 
 // GetMouseWheelXNorm returns 1 if mouse wheel xDelta > 0, -1 if xDelta < 0, and 0 otherwise
 func GetMouseWheelXNorm() int32 {
+
+	if isMouseCaptured {
+		return 0
+	}
+
+	return GetMouseWheelXNormCaptured()
+}
+
+// GetMouseWheelXNormCaptured returns 1 if mouse wheel xDelta > 0, -1 if xDelta < 0, and 0 otherwise
+func GetMouseWheelXNormCaptured() int32 {
 
 	if mouseWheel.XDelta > 0 {
 		return 1
@@ -167,8 +236,18 @@ func GetMouseWheelXNorm() int32 {
 	return 0
 }
 
-// returns 1 if mouse wheel yDelta > 0, -1 if yDelta < 0, and 0 otherwise
+// GetMouseWheelYNorm returns 1 if mouse wheel yDelta > 0, -1 if yDelta < 0, and 0 otherwise
 func GetMouseWheelYNorm() int32 {
+
+	if isMouseCaptured {
+		return 0
+	}
+
+	return GetMouseWheelYNormCaptured()
+}
+
+// GetMouseWheelYNormCaptured returns 1 if mouse wheel yDelta > 0, -1 if yDelta < 0, and 0 otherwise
+func GetMouseWheelYNormCaptured() int32 {
 
 	if mouseWheel.YDelta > 0 {
 		return 1
@@ -181,6 +260,15 @@ func GetMouseWheelYNorm() int32 {
 
 func KeyClicked(kc sdl.Keycode) bool {
 
+	if isKeyboardCaptured {
+		return false
+	}
+
+	return KeyClickedCaptured(kc)
+}
+
+func KeyClickedCaptured(kc sdl.Keycode) bool {
+
 	ks, ok := keyMap[kc]
 	if !ok {
 		return false
@@ -190,6 +278,15 @@ func KeyClicked(kc sdl.Keycode) bool {
 }
 
 func KeyReleased(kc sdl.Keycode) bool {
+
+	if isKeyboardCaptured {
+		return false
+	}
+
+	return KeyReleasedCaptured(kc)
+}
+
+func KeyReleasedCaptured(kc sdl.Keycode) bool {
 
 	ks, ok := keyMap[kc]
 	if !ok {
@@ -201,6 +298,15 @@ func KeyReleased(kc sdl.Keycode) bool {
 
 func KeyDown(kc sdl.Keycode) bool {
 
+	if isKeyboardCaptured {
+		return false
+	}
+
+	return KeyDownCaptured(kc)
+}
+
+func KeyDownCaptured(kc sdl.Keycode) bool {
+
 	ks, ok := keyMap[kc]
 	if !ok {
 		return false
@@ -210,6 +316,15 @@ func KeyDown(kc sdl.Keycode) bool {
 }
 
 func KeyUp(kc sdl.Keycode) bool {
+
+	if isKeyboardCaptured {
+		return false
+	}
+
+	return KeyUpCaptured(kc)
+}
+
+func KeyUpCaptured(kc sdl.Keycode) bool {
 
 	ks, ok := keyMap[kc]
 	if !ok {
@@ -221,6 +336,15 @@ func KeyUp(kc sdl.Keycode) bool {
 
 func MouseClicked(mb int) bool {
 
+	if isMouseCaptured {
+		return false
+	}
+
+	return MouseClickedCaptued(mb)
+}
+
+func MouseClickedCaptued(mb int) bool {
+
 	btn, ok := mouseBtnMap[mb]
 	if !ok {
 		return false
@@ -231,6 +355,15 @@ func MouseClicked(mb int) bool {
 
 func MouseDoubleClicked(mb int) bool {
 
+	if isMouseCaptured {
+		return false
+	}
+
+	return MouseDoubleClickedCaptured(mb)
+}
+
+func MouseDoubleClickedCaptured(mb int) bool {
+
 	btn, ok := mouseBtnMap[mb]
 	if !ok {
 		return false
@@ -240,6 +373,16 @@ func MouseDoubleClicked(mb int) bool {
 }
 
 func MouseReleased(mb int) bool {
+
+	if isMouseCaptured {
+		return false
+	}
+
+	return MouseReleasedCaptured(mb)
+}
+
+func MouseReleasedCaptured(mb int) bool {
+
 	btn, ok := mouseBtnMap[mb]
 	if !ok {
 		return false
@@ -250,6 +393,15 @@ func MouseReleased(mb int) bool {
 
 func MouseDown(mb int) bool {
 
+	if isMouseCaptured {
+		return false
+	}
+
+	return MouseDownCaptued(mb)
+}
+
+func MouseDownCaptued(mb int) bool {
+
 	btn, ok := mouseBtnMap[mb]
 	if !ok {
 		return false
@@ -259,6 +411,15 @@ func MouseDown(mb int) bool {
 }
 
 func MouseUp(mb int) bool {
+
+	if isMouseCaptured {
+		return false
+	}
+
+	return MouseUpCaptured(mb)
+}
+
+func MouseUpCaptured(mb int) bool {
 
 	btn, ok := mouseBtnMap[mb]
 	if !ok {
