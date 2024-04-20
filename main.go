@@ -37,6 +37,7 @@ import (
 		- HDR
 		- Cascaded shadow mapping
 		- Skeletal animations
+	- In some cases we DO want input even when captured by UI. We need two systems within input package, one filtered and one not
 	- Proper model loading (i.e. load model by reading all its meshes, textures, and so on together)
 	- Create VAO struct independent from VBO to support multi-VBO use cases (e.g. instancing) ✅
 	- Renderer batching
