@@ -58,24 +58,14 @@ func (w *Window) handleInputs() {
 		case *sdl.KeyboardEvent:
 
 			input.HandleKeyboardEvent(e)
+
+			// Send modifier key updates to imgui (based on the imgui SDL backend)
+			imIo.AddKeyEvent(imgui.ModCtrl, e.Keysym.Mod&sdl.KMOD_CTRL != 0)
+			imIo.AddKeyEvent(imgui.ModShift, e.Keysym.Mod&sdl.KMOD_SHIFT != 0)
+			imIo.AddKeyEvent(imgui.ModAlt, e.Keysym.Mod&sdl.KMOD_ALT != 0)
+			imIo.AddKeyEvent(imgui.ModSuper, e.Keysym.Mod&sdl.KMOD_GUI != 0)
+
 			imIo.AddKeyEvent(nmageimgui.SdlScancodeToImGuiKey(e.Keysym.Scancode), e.Type == sdl.KEYDOWN)
-
-			// Send modifier key updates to imgui
-			if e.Keysym.Sym == sdl.K_LCTRL || e.Keysym.Sym == sdl.K_RCTRL {
-				imIo.SetKeyCtrl(e.Type == sdl.KEYDOWN)
-			}
-
-			if e.Keysym.Sym == sdl.K_LSHIFT || e.Keysym.Sym == sdl.K_RSHIFT {
-				imIo.SetKeyShift(e.Type == sdl.KEYDOWN)
-			}
-
-			if e.Keysym.Sym == sdl.K_LALT || e.Keysym.Sym == sdl.K_RALT {
-				imIo.SetKeyAlt(e.Type == sdl.KEYDOWN)
-			}
-
-			if e.Keysym.Sym == sdl.K_LGUI || e.Keysym.Sym == sdl.K_RGUI {
-				imIo.SetKeySuper(e.Type == sdl.KEYDOWN)
-			}
 
 		case *sdl.TextInputEvent:
 			imIo.AddInputCharactersUTF8(e.GetText())
