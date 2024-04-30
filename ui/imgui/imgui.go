@@ -12,7 +12,7 @@ import (
 type ImguiInfo struct {
 	ImCtx imgui.Context
 
-	Mat        *materials.Material
+	Mat        materials.Material
 	VaoID      uint32
 	VboID      uint32
 	IndexBufID uint32
@@ -204,7 +204,7 @@ void main()
 // If the path is empty a default nMage shader is used
 func NewImGui(shaderPath string) ImguiInfo {
 
-	var imguiMat *materials.Material
+	var imguiMat materials.Material
 	if shaderPath == "" {
 		imguiMat = materials.NewMaterialSrc("ImGUI Mat", []byte(DefaultImguiShader))
 	} else {

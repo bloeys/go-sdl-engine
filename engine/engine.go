@@ -167,42 +167,44 @@ func initSDL() error {
 	return nil
 }
 
-func CreateOpenGLWindow(title string, x, y, width, height int32, flags WindowFlags, rend renderer.Render) (*Window, error) {
+func CreateOpenGLWindow(title string, x, y, width, height int32, flags WindowFlags, rend renderer.Render) (Window, error) {
 	return createWindow(title, x, y, width, height, WindowFlags_OPENGL|flags, rend)
 }
 
-func CreateOpenGLWindowCentered(title string, width, height int32, flags WindowFlags, rend renderer.Render) (*Window, error) {
+func CreateOpenGLWindowCentered(title string, width, height int32, flags WindowFlags, rend renderer.Render) (Window, error) {
 	return createWindow(title, sdl.WINDOWPOS_CENTERED, sdl.WINDOWPOS_CENTERED, width, height, WindowFlags_OPENGL|flags, rend)
 }
 
-func createWindow(title string, x, y, width, height int32, flags WindowFlags, rend renderer.Render) (*Window, error) {
+func createWindow(title string, x, y, width, height int32, flags WindowFlags, rend renderer.Render) (Window, error) {
 
 	assert.T(isInited, "engine.Init() was not called!")
 
-	sdlWin, err := sdl.CreateWindow(title, x, y, width, height, uint32(flags))
-	if err != nil {
-		return nil, err
-	}
-
-	win := &Window{
-		SDLWin:         sdlWin,
+	win := Window{
+		SDLWin:         nil,
 		EventCallbacks: make([]func(sdl.Event), 0),
 		Rend:           rend,
 	}
 
-	win.GlCtx, err = sdlWin.GLCreateContext()
+	var err error
+
+	win.SDLWin, err = sdl.CreateWindow(title, x, y, width, height, uint32(flags))
 	if err != nil {
-		return nil, err
+		return win, err
+	}
+
+	win.GlCtx, err = win.SDLWin.GLCreateContext()
+	if err != nil {
+		return win, err
 	}
 
 	err = initOpenGL()
 	if err != nil {
-		return nil, err
+		return win, err
 	}
 
 	// Get rid of the blinding white startup screen (unfortunately there is still one frame of white)
 	gl.Clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT | gl.STENCIL_BUFFER_BIT)
-	sdlWin.GLSwap()
+	win.SDLWin.GLSwap()
 
 	return win, err
 }

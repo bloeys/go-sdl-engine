@@ -166,22 +166,22 @@ func (m *Material) Delete() {
 	gl.DeleteProgram(m.ShaderProg.Id)
 }
 
-func NewMaterial(matName, shaderPath string) *Material {
+func NewMaterial(matName, shaderPath string) Material {
 
 	shdrProg, err := shaders.LoadAndCompileCombinedShader(shaderPath)
 	if err != nil {
 		logging.ErrLog.Fatalf("Failed to create new material '%s'. Err: %s\n", matName, err.Error())
 	}
 
-	return &Material{Name: matName, ShaderProg: shdrProg, UnifLocs: make(map[string]int32), AttribLocs: make(map[string]int32)}
+	return Material{Name: matName, ShaderProg: shdrProg, UnifLocs: make(map[string]int32), AttribLocs: make(map[string]int32)}
 }
 
-func NewMaterialSrc(matName string, shaderSrc []byte) *Material {
+func NewMaterialSrc(matName string, shaderSrc []byte) Material {
 
 	shdrProg, err := shaders.LoadAndCompileCombinedShaderSrc(shaderSrc)
 	if err != nil {
 		logging.ErrLog.Fatalf("Failed to create new material '%s'. Err: %s\n", matName, err.Error())
 	}
 
-	return &Material{Name: matName, ShaderProg: shdrProg, UnifLocs: make(map[string]int32), AttribLocs: make(map[string]int32)}
+	return Material{Name: matName, ShaderProg: shdrProg, UnifLocs: make(map[string]int32), AttribLocs: make(map[string]int32)}
 }

@@ -33,19 +33,19 @@ import (
 		- Directional light shadows ✅
 		- Point light shadows ✅
 		- Spotlight shadows ✅
+		- Create VAO struct independent from VBO to support multi-VBO use cases (e.g. instancing) ✅
 		- UBO support
 		- HDR
 		- Cascaded shadow mapping
 		- Skeletal animations
-	- In some cases we DO want input even when captured by UI. We need two systems within input package, one filtered and one not
+	- In some cases we DO want input even when captured by UI. We need two systems within input package, one filtered and one not✅
 	- Proper model loading (i.e. load model by reading all its meshes, textures, and so on together)
-	- Create VAO struct independent from VBO to support multi-VBO use cases (e.g. instancing) ✅
 	- Renderer batching
 	- Scene graph
 	- Separate engine loop from rendering loop? or leave it to the user?
-	- Abstract keys enum away from sdl
-	- Proper Asset loading
+	- Abstract keys enum away from sdl?
 	- Frustum culling
+	- Proper Asset loading system
 	- Material system editor with fields automatically extracted from the shader
 */
 
@@ -169,11 +169,11 @@ const (
 )
 
 var (
-	window *engine.Window
+	window engine.Window
 
 	pitch float32 = 0
 	yaw   float32 = -1.5
-	cam   *camera.Camera
+	cam   camera.Camera
 
 	// Demo fbo
 	renderToDemoFbo    = false
@@ -195,22 +195,22 @@ var (
 	spotLightDepthMapFbo buffers.Framebuffer
 
 	screenQuadVao buffers.VertexArray
-	screenQuadMat *materials.Material
+	screenQuadMat materials.Material
 
-	unlitMat           *materials.Material
-	whiteMat           *materials.Material
-	containerMat       *materials.Material
-	palleteMat         *materials.Material
-	skyboxMat          *materials.Material
-	depthMapMat        *materials.Material
-	arrayDepthMapMat   *materials.Material
-	omnidirDepthMapMat *materials.Material
-	debugDepthMat      *materials.Material
+	unlitMat           materials.Material
+	whiteMat           materials.Material
+	containerMat       materials.Material
+	palleteMat         materials.Material
+	skyboxMat          materials.Material
+	depthMapMat        materials.Material
+	arrayDepthMapMat   materials.Material
+	omnidirDepthMapMat materials.Material
+	debugDepthMat      materials.Material
 
-	cubeMesh   *meshes.Mesh
-	sphereMesh *meshes.Mesh
-	chairMesh  *meshes.Mesh
-	skyboxMesh *meshes.Mesh
+	cubeMesh   meshes.Mesh
+	sphereMesh meshes.Mesh
+	chairMesh  meshes.Mesh
+	skyboxMesh meshes.Mesh
 
 	cubeModelMat = gglm.NewTrMatId()
 
@@ -314,14 +314,14 @@ func main() {
 	engine.SetSrgbFramebuffer(true)
 
 	game := &Game{
-		Win:       window,
+		Win:       &window,
 		WinWidth:  int32(unscaledWindowWidth * dpiScaling),
 		WinHeight: int32(unscaledWindowHeight * dpiScaling),
 		ImGUIInfo: nmageimgui.NewImGui("./res/shaders/imgui.glsl"),
 	}
 	window.EventCallbacks = append(window.EventCallbacks, game.handleWindowEvents)
 
-	engine.Run(game, window, game.ImGUIInfo)
+	engine.Run(game, &window, game.ImGUIInfo)
 }
 
 func (g *Game) handleWindowEvents(e sdl.Event) {
@@ -995,7 +995,7 @@ func (g *Game) Render() {
 	if renderToBackBuffer {
 
 		if renderDepthBuffer {
-			g.RenderScene(debugDepthMat)
+			g.RenderScene(&debugDepthMat)
 		} else {
 			g.RenderScene(nil)
 		}
@@ -1031,7 +1031,7 @@ func (g *Game) renderDirectionalLightShadowmap() {
 	//
 	// Some note that this is too troublesome and fails in many cases. Might be better to remove.
 	gl.CullFace(gl.FRONT)
-	g.RenderScene(depthMapMat)
+	g.RenderScene(&depthMapMat)
 	gl.CullFace(gl.BACK)
 
 	dirLightDepthMapFbo.UnBindWithViewport(uint32(g.WinWidth), uint32(g.WinHeight))
@@ -1041,7 +1041,7 @@ func (g *Game) renderDirectionalLightShadowmap() {
 		screenQuadMat.SetUnifVec2("offset", dirLightDepthMapFboOffset)
 		screenQuadMat.SetUnifVec2("scale", dirLightDepthMapFboScale)
 		screenQuadMat.Bind()
-		window.Rend.DrawVertexArray(screenQuadMat, &screenQuadVao, 0, 6)
+		window.Rend.DrawVertexArray(&screenQuadMat, &screenQuadVao, 0, 6)
 	}
 }
 
@@ -1070,7 +1070,7 @@ func (g *Game) renderSpotLightShadowmaps() {
 
 	// Front culling created issues
 	// gl.CullFace(gl.FRONT)
-	g.RenderScene(arrayDepthMapMat)
+	g.RenderScene(&arrayDepthMapMat)
 	// gl.CullFace(gl.BACK)
 
 	spotLightDepthMapFbo.UnBindWithViewport(uint32(g.WinWidth), uint32(g.WinHeight))
@@ -1096,7 +1096,7 @@ func (g *Game) renderPointLightShadowmaps() {
 			omnidirDepthMapMat.SetUnifMat4("cubemapProjViewMats["+strconv.Itoa(j)+"]", &projViewMats[j])
 		}
 
-		g.RenderScene(omnidirDepthMapMat)
+		g.RenderScene(&omnidirDepthMapMat)
 	}
 
 	pointLightDepthMapFbo.UnBindWithViewport(uint32(g.WinWidth), uint32(g.WinHeight))
@@ -1108,7 +1108,7 @@ func (g *Game) renderDemoFob() {
 	demoFbo.Clear()
 
 	if renderDepthBuffer {
-		g.RenderScene(debugDepthMat)
+		g.RenderScene(&debugDepthMat)
 	} else {
 		g.RenderScene(nil)
 	}
@@ -1123,7 +1123,7 @@ func (g *Game) renderDemoFob() {
 	screenQuadMat.SetUnifVec2("offset", demoFboOffset)
 	screenQuadMat.SetUnifVec2("scale", demoFboScale)
 
-	window.Rend.DrawVertexArray(screenQuadMat, &screenQuadVao, 0, 6)
+	window.Rend.DrawVertexArray(&screenQuadMat, &screenQuadVao, 0, 6)
 }
 
 func (g *Game) RenderScene(overrideMat *materials.Material) {
@@ -1131,9 +1131,9 @@ func (g *Game) RenderScene(overrideMat *materials.Material) {
 	tempModelMatrix := cubeModelMat.Clone()
 
 	// See if we need overrides
-	sunMat := palleteMat
-	chairMat := palleteMat
-	cubeMat := containerMat
+	sunMat := &palleteMat
+	chairMat := &palleteMat
+	cubeMat := &containerMat
 
 	if overrideMat != nil {
 		sunMat = overrideMat
@@ -1142,32 +1142,32 @@ func (g *Game) RenderScene(overrideMat *materials.Material) {
 	}
 
 	// Draw dir light
-	window.Rend.DrawMesh(sphereMesh, gglm.NewTrMatId().Translate(gglm.NewVec3(0, 10, 0)).Scale(gglm.NewVec3(0.1, 0.1, 0.1)), sunMat)
+	window.Rend.DrawMesh(&sphereMesh, gglm.NewTrMatId().Translate(gglm.NewVec3(0, 10, 0)).Scale(gglm.NewVec3(0.1, 0.1, 0.1)), sunMat)
 
 	// Draw point lights
 	for i := 0; i < len(pointLights); i++ {
 
 		pl := &pointLights[i]
-		window.Rend.DrawMesh(cubeMesh, gglm.NewTrMatId().Translate(&pl.Pos).Scale(gglm.NewVec3(0.1, 0.1, 0.1)), sunMat)
+		window.Rend.DrawMesh(&cubeMesh, gglm.NewTrMatId().Translate(&pl.Pos).Scale(gglm.NewVec3(0.1, 0.1, 0.1)), sunMat)
 	}
 
 	// Chair
-	window.Rend.DrawMesh(chairMesh, tempModelMatrix, chairMat)
+	window.Rend.DrawMesh(&chairMesh, tempModelMatrix, chairMat)
 
 	// Ground
-	window.Rend.DrawMesh(cubeMesh, gglm.NewTrMatId().Translate(gglm.NewVec3(0, -3, 0)).Scale(gglm.NewVec3(20, 1, 20)), cubeMat)
+	window.Rend.DrawMesh(&cubeMesh, gglm.NewTrMatId().Translate(gglm.NewVec3(0, -3, 0)).Scale(gglm.NewVec3(20, 1, 20)), cubeMat)
 
 	// Cubes
 	tempModelMatrix.Translate(gglm.NewVec3(-6, 0, 0))
-	window.Rend.DrawMesh(cubeMesh, tempModelMatrix, cubeMat)
+	window.Rend.DrawMesh(&cubeMesh, tempModelMatrix, cubeMat)
 
 	tempModelMatrix.Translate(gglm.NewVec3(0, -1, -4))
-	window.Rend.DrawMesh(cubeMesh, tempModelMatrix, cubeMat)
+	window.Rend.DrawMesh(&cubeMesh, tempModelMatrix, cubeMat)
 
 	// Rotating cubes
-	window.Rend.DrawMesh(cubeMesh, &rotatingCubeTrMat1, cubeMat)
-	window.Rend.DrawMesh(cubeMesh, &rotatingCubeTrMat2, cubeMat)
-	window.Rend.DrawMesh(cubeMesh, &rotatingCubeTrMat3, cubeMat)
+	window.Rend.DrawMesh(&cubeMesh, &rotatingCubeTrMat1, cubeMat)
+	window.Rend.DrawMesh(&cubeMesh, &rotatingCubeTrMat2, cubeMat)
+	window.Rend.DrawMesh(&cubeMesh, &rotatingCubeTrMat3, cubeMat)
 
 	// Cubes generator
 	// rowSize := 1
@@ -1185,7 +1185,7 @@ func (g *Game) DrawSkybox() {
 	gl.Disable(gl.CULL_FACE)
 	gl.DepthFunc(gl.LEQUAL)
 
-	window.Rend.DrawCubemap(skyboxMesh, skyboxMat)
+	window.Rend.DrawCubemap(&skyboxMesh, &skyboxMat)
 
 	gl.DepthFunc(gl.LESS)
 	gl.Enable(gl.CULL_FACE)

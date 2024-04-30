@@ -21,19 +21,19 @@ type Mesh struct {
 	SubMeshes []SubMesh
 }
 
-func NewMesh(name, modelPath string, postProcessFlags asig.PostProcess) (*Mesh, error) {
+func NewMesh(name, modelPath string, postProcessFlags asig.PostProcess) (Mesh, error) {
 
 	scene, release, err := asig.ImportFile(modelPath, asig.PostProcessTriangulate|postProcessFlags)
 	if err != nil {
-		return nil, errors.New("Failed to load model. Err: " + err.Error())
+		return Mesh{}, errors.New("Failed to load model. Err: " + err.Error())
 	}
 	defer release()
 
 	if len(scene.Meshes) == 0 {
-		return nil, errors.New("No meshes found in file: " + modelPath)
+		return Mesh{}, errors.New("No meshes found in file: " + modelPath)
 	}
 
-	mesh := &Mesh{
+	mesh := Mesh{
 		Name:      name,
 		Vao:       buffers.NewVertexArray(),
 		SubMeshes: make([]SubMesh, 0, 1),

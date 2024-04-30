@@ -59,9 +59,9 @@ func (c *Camera) UpdateRotation(pitch, yaw float32) {
 	c.Update()
 }
 
-func NewPerspective(pos, forward, worldUp *gglm.Vec3, nearClip, farClip, fovRadians, aspectRatio float32) *Camera {
+func NewPerspective(pos, forward, worldUp *gglm.Vec3, nearClip, farClip, fovRadians, aspectRatio float32) Camera {
 
-	cam := &Camera{
+	cam := Camera{
 		Type:    Type_Perspective,
 		Pos:     *pos,
 		Forward: *forward,
@@ -78,9 +78,9 @@ func NewPerspective(pos, forward, worldUp *gglm.Vec3, nearClip, farClip, fovRadi
 	return cam
 }
 
-func NewOrthographic(pos, forward, worldUp *gglm.Vec3, nearClip, farClip, left, right, top, bottom float32) *Camera {
+func NewOrthographic(pos, forward, worldUp *gglm.Vec3, nearClip, farClip, left, right, top, bottom float32) Camera {
 
-	cam := &Camera{
+	cam := Camera{
 		Type:    Type_Orthographic,
 		Pos:     *pos,
 		Forward: *forward,
