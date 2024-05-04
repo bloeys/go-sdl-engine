@@ -2,8 +2,8 @@ github.com/AllenDang/cimgui-go v0.0.0-20230720025235-f2ff398a66b2 h1:3HA/5qD8Rim
 github.com/AllenDang/cimgui-go v0.0.0-20230720025235-f2ff398a66b2/go.mod h1:iNfbIyOBN8k3XScMxULbrwYbPsXEAUD0Jb6UwrspQb8=
 github.com/bloeys/assimp-go v0.4.4 h1:Yn5e/RpE0Oes0YMBy8O7KkwAO4R/RpgrZPJCt08dVIU=
 github.com/bloeys/assimp-go v0.4.4/go.mod h1:my3yRxT7CfOztmvi+0svmwbaqw0KFrxaHxncoyaEIP0=
-github.com/bloeys/gglm v0.43.0 h1:ZpOghR3PHfpkigTDh+FqxLsF0gN8CD6s/bWoei6LyxI=
-github.com/bloeys/gglm v0.43.0/go.mod h1:qwJQ0WzV191wAMwlGicbfbChbKoSedMk7gFFX6GnyOk=
+github.com/bloeys/gglm v0.49.0 h1:YtbyHpszYhjnxw7KVV0LaCdBktRMqfGx/i37EMomxsE=
+github.com/bloeys/gglm v0.49.0/go.mod h1:qwJQ0WzV191wAMwlGicbfbChbKoSedMk7gFFX6GnyOk=
 github.com/go-gl/gl v0.0.0-20211210172815-726fda9656d6 h1:zDw5v7qm4yH7N8C8uWd+8Ii9rROdgWxQuGoJ9WDXxfk=
 github.com/go-gl/gl v0.0.0-20211210172815-726fda9656d6/go.mod h1:9YTyiznxEY1fVinfM7RvRcjRHbw2xLBJ3AAGIT0I4Nw=
 github.com/mandykoh/go-parallel v0.1.0 h1:7vJMNMC4dsbgZdkAb2A8tV5ENY1v7VxIO1wzQWZoT8k=

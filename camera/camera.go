@@ -41,7 +41,7 @@ func (c *Camera) Update() {
 	c.ViewMat = gglm.LookAtRH(&c.Pos, c.Pos.Clone().Add(&c.Forward), &c.WorldUp).Mat4
 
 	if c.Type == Type_Perspective {
-		c.ProjMat = *gglm.Perspective(c.Fov, c.AspectRatio, c.NearClip, c.FarClip)
+		c.ProjMat = gglm.Perspective(c.Fov, c.AspectRatio, c.NearClip, c.FarClip)
 	} else {
 		c.ProjMat = gglm.Ortho(c.Left, c.Right, c.Top, c.Bottom, c.NearClip, c.FarClip).Mat4
 	}

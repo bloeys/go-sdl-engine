@@ -8,7 +8,7 @@ require github.com/go-gl/gl v0.0.0-20211210172815-726fda9656d6
 
 require (
 	github.com/bloeys/assimp-go v0.4.4
-	github.com/bloeys/gglm v0.43.0
+	github.com/bloeys/gglm v0.49.0
 )
 
 require (
