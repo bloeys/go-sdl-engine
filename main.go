@@ -639,7 +639,7 @@ func (g *Game) initFbos() {
 	assert.T(demoFbo.IsComplete(), "Demo fbo is not complete after init")
 
 	// Depth map fbo
-	dirLightDepthMapFbo = buffers.NewFramebuffer(1024, 1024)
+	dirLightDepthMapFbo = buffers.NewFramebuffer(2048, 2048)
 	dirLightDepthMapFbo.SetNoColorBuffer()
 	dirLightDepthMapFbo.NewDepthAttachment(
 		buffers.FramebufferAttachmentType_Texture,
@@ -649,7 +649,7 @@ func (g *Game) initFbos() {
 	assert.T(dirLightDepthMapFbo.IsComplete(), "Depth map fbo is not complete after init")
 
 	// Point light depth map fbo
-	pointLightDepthMapFbo = buffers.NewFramebuffer(1024, 1024)
+	pointLightDepthMapFbo = buffers.NewFramebuffer(512, 512)
 	pointLightDepthMapFbo.SetNoColorBuffer()
 	pointLightDepthMapFbo.NewDepthCubemapArrayAttachment(
 		buffers.FramebufferAttachmentDataFormat_DepthF32,
@@ -659,7 +659,7 @@ func (g *Game) initFbos() {
 	assert.T(pointLightDepthMapFbo.IsComplete(), "Point light depth map fbo is not complete after init")
 
 	// Spot light depth map fbo
-	spotLightDepthMapFbo = buffers.NewFramebuffer(1024, 1024)
+	spotLightDepthMapFbo = buffers.NewFramebuffer(512, 512)
 	spotLightDepthMapFbo.SetNoColorBuffer()
 	spotLightDepthMapFbo.NewDepthTextureArrayAttachment(
 		buffers.FramebufferAttachmentDataFormat_DepthF32,
