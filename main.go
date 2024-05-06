@@ -2,7 +2,9 @@ package main
 
 import (
 	"fmt"
+	"os"
 	"runtime"
+	"runtime/pprof"
 	"strconv"
 
 	imgui "github.com/AllenDang/cimgui-go"
@@ -188,6 +190,8 @@ const (
 
 	unscaledWindowWidth  = 1280
 	unscaledWindowHeight = 720
+
+	PROFILE_CPU = true
 )
 
 var (
@@ -346,7 +350,36 @@ func main() {
 	}
 	window.EventCallbacks = append(window.EventCallbacks, game.handleWindowEvents)
 
+	if PROFILE_CPU {
+
+		pf, err := os.Create("cpu.pprof")
+		if err == nil {
+			defer pf.Close()
+			pprof.StartCPUProfile(pf)
+		} else {
+			logging.ErrLog.Printf("Creating cpu.pprof file failed. CPU profiling will not run. Err=%v\n", err)
+		}
+	}
+
 	engine.Run(game, &window, game.ImGUIInfo)
+
+	if PROFILE_CPU {
+		pprof.StopCPUProfile()
+
+		heapProfile, err := os.Create("heap.pprof")
+		if err == nil {
+
+			err = pprof.WriteHeapProfile(heapProfile)
+			if err != nil {
+				logging.ErrLog.Printf("Writing heap profile to heap.pprof failed. Err=%v\n", err)
+			}
+
+			heapProfile.Close()
+
+		} else {
+			logging.ErrLog.Printf("Creating heap.pprof file failed. Err=%v\n", err)
+		}
+	}
 }
 
 func (g *Game) handleWindowEvents(e sdl.Event) {
