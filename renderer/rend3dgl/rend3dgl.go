@@ -29,7 +29,14 @@ func (r *Rend3DGL) DrawMesh(mesh *meshes.Mesh, modelMat *gglm.TrMat, mat *materi
 		r.BoundMat = mat
 	}
 
-	mat.SetUnifMat4("modelMat", &modelMat.Mat4)
+	if mat.Settings.Has(materials.MaterialSettings_HasModelMat) {
+		mat.SetUnifMat4("modelMat", &modelMat.Mat4)
+	}
+
+	if mat.Settings.Has(materials.MaterialSettings_HasNormalMat) {
+		normalMat := modelMat.Clone().InvertAndTranspose().ToMat3()
+		mat.SetUnifMat3("normalMat", &normalMat)
+	}
 
 	for i := 0; i < len(mesh.SubMeshes); i++ {
 		gl.DrawElementsBaseVertexWithOffset(gl.TRIANGLES, mesh.SubMeshes[i].IndexCount, gl.UNSIGNED_INT, uintptr(mesh.SubMeshes[i].BaseIndex), mesh.SubMeshes[i].BaseVertex)

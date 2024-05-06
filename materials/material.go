@@ -21,9 +21,30 @@ const (
 	TextureSlot_ShadowMap_Array1 TextureSlot = 13
 )
 
+type MaterialSettings uint64
+
+const (
+	MaterialSettings_None        MaterialSettings = iota
+	MaterialSettings_HasModelMat MaterialSettings = 1 << (iota - 1)
+	MaterialSettings_HasNormalMat
+)
+
+func (ms *MaterialSettings) Set(flags MaterialSettings) {
+	*ms |= flags
+}
+
+func (ms *MaterialSettings) Remove(flags MaterialSettings) {
+	*ms &= ^flags
+}
+
+func (ms *MaterialSettings) Has(flags MaterialSettings) bool {
+	return *ms&flags == flags
+}
+
 type Material struct {
 	Name       string
 	ShaderProg shaders.ShaderProgram
+	Settings   MaterialSettings
 
 	UnifLocs   map[string]int32
 	AttribLocs map[string]int32

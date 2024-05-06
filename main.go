@@ -517,9 +517,11 @@ func (g *Game) Init() {
 	screenQuadMat.SetUnifInt32("material.diffuse", int32(materials.TextureSlot_Diffuse))
 
 	unlitMat = materials.NewMaterial("Unlit mat", "./res/shaders/simple-unlit.glsl")
+	unlitMat.Settings.Set(materials.MaterialSettings_HasModelMat)
 	unlitMat.SetUnifInt32("material.diffuse", int32(materials.TextureSlot_Diffuse))
 
 	whiteMat = materials.NewMaterial("White mat", "./res/shaders/simple.glsl")
+	whiteMat.Settings.Set(materials.MaterialSettings_HasModelMat | materials.MaterialSettings_HasNormalMat)
 	whiteMat.Shininess = 64
 	whiteMat.DiffuseTex = whiteTex.TexID
 	whiteMat.SpecularTex = blackTex.TexID
@@ -539,6 +541,7 @@ func (g *Game) Init() {
 	whiteMat.SetUnifInt32("spotLightShadowMaps", int32(materials.TextureSlot_ShadowMap_Array1))
 
 	containerMat = materials.NewMaterial("Container mat", "./res/shaders/simple.glsl")
+	containerMat.Settings.Set(materials.MaterialSettings_HasModelMat | materials.MaterialSettings_HasNormalMat)
 	containerMat.Shininess = 64
 	containerMat.DiffuseTex = containerDiffuseTex.TexID
 	containerMat.SpecularTex = containerSpecularTex.TexID
@@ -558,6 +561,7 @@ func (g *Game) Init() {
 	containerMat.SetUnifInt32("spotLightShadowMaps", int32(materials.TextureSlot_ShadowMap_Array1))
 
 	palleteMat = materials.NewMaterial("Pallete mat", "./res/shaders/simple.glsl")
+	palleteMat.Settings.Set(materials.MaterialSettings_HasModelMat | materials.MaterialSettings_HasNormalMat)
 	palleteMat.Shininess = 64
 	palleteMat.DiffuseTex = palleteTex.TexID
 	palleteMat.SpecularTex = blackTex.TexID
@@ -576,12 +580,16 @@ func (g *Game) Init() {
 	palleteMat.SetUnifInt32("spotLightShadowMaps", int32(materials.TextureSlot_ShadowMap_Array1))
 
 	debugDepthMat = materials.NewMaterial("Debug depth mat", "./res/shaders/debug-depth.glsl")
+	debugDepthMat.Settings.Set(materials.MaterialSettings_HasModelMat)
 
 	depthMapMat = materials.NewMaterial("Depth Map mat", "./res/shaders/depth-map.glsl")
+	depthMapMat.Settings.Set(materials.MaterialSettings_HasModelMat)
 
 	arrayDepthMapMat = materials.NewMaterial("Array Depth Map mat", "./res/shaders/array-depth-map.glsl")
+	arrayDepthMapMat.Settings.Set(materials.MaterialSettings_HasModelMat)
 
 	omnidirDepthMapMat = materials.NewMaterial("Omnidirectional Depth Map mat", "./res/shaders/omnidirectional-depth-map.glsl")
+	omnidirDepthMapMat.Settings.Set(materials.MaterialSettings_HasModelMat)
 
 	skyboxMat = materials.NewMaterial("Skybox mat", "./res/shaders/skybox.glsl")
 	skyboxMat.CubemapTex = skyboxCmap.TexID

@@ -7,6 +7,7 @@ layout(location=2) in vec2 vertUV0In;
 layout(location=3) in vec3 vertColorIn;
 
 uniform mat4 modelMat;
+uniform mat3 normalMat;
 uniform mat4 projViewMat;
 uniform mat4 dirLightProjViewMat;
 
@@ -22,11 +23,7 @@ out vec4 fragPosSpotLight[NUM_SPOT_LIGHTS];
 
 void main()
 {
-    // @TODO: Calculate this on the CPU and send it as a uniform
-    //
-    // This produces the normal matrix that multiplies with the model normal to produce the
-    // world space normal. Based on 'One last thing' section from: https://learnopengl.com/Lighting/Basic-Lighting
-    vertNormal = mat3(transpose(inverse(modelMat))) * vertNormalIn;
+    vertNormal = normalMat * vertNormalIn;
     
     vertUV0 = vertUV0In;
     vertColor = vertColorIn;
