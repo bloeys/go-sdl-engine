@@ -25,8 +25,8 @@ type MaterialSettings uint64
 
 const (
 	MaterialSettings_None        MaterialSettings = iota
-	MaterialSettings_HasModelMat MaterialSettings = 1 << (iota - 1)
-	MaterialSettings_HasNormalMat
+	MaterialSettings_HasModelMtx MaterialSettings = 1 << (iota - 1)
+	MaterialSettings_HasNormalMtx
 )
 
 func (ms *MaterialSettings) Set(flags MaterialSettings) {

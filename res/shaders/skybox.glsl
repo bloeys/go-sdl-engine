@@ -3,8 +3,9 @@
 
 layout(location=0) in vec3 vertPosIn;
 layout(location=1) in vec3 vertNormalIn;
-layout(location=2) in vec2 vertUV0In;
-layout(location=3) in vec3 vertColorIn;
+layout(location=2) in vec3 vertTangentIn;
+layout(location=3) in vec2 vertUV0In;
+layout(location=4) in vec3 vertColorIn;
 
 out vec3 vertUV0;
 

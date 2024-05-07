@@ -36,6 +36,7 @@ import (
 		- Point light shadows ✅
 		- Spotlight shadows ✅
 		- Create VAO struct independent from VBO to support multi-VBO use cases (e.g. instancing) ✅
+		- Normals maps
 		- UBO support
 		- HDR
 		- Cascaded shadow mapping
@@ -226,6 +227,7 @@ var (
 	unlitMat           materials.Material
 	whiteMat           materials.Material
 	containerMat       materials.Material
+	groundMat          materials.Material
 	palleteMat         materials.Material
 	skyboxMat          materials.Material
 	depthMapMat        materials.Material
@@ -309,8 +311,8 @@ var (
 			InnerCutoffRad: 15 * gglm.Deg2Rad,
 			OuterCutoffRad: 20 * gglm.Deg2Rad,
 
-			NearPlane: 1,
-			FarPlane:  30,
+			NearPlane: 2,
+			FarPlane:  50,
 		},
 	}
 )
@@ -498,6 +500,16 @@ func (g *Game) Init() {
 		logging.ErrLog.Fatalln("Failed to load texture. Err: ", err)
 	}
 
+	brickwallDiffuseTex, err := assets.LoadTexturePNG("./res/textures/brickwall.png", &assets.TextureLoadOptions{})
+	if err != nil {
+		logging.ErrLog.Fatalln("Failed to load texture. Err: ", err)
+	}
+
+	brickwallNormalTex, err := assets.LoadTexturePNG("./res/textures/brickwall-normal.png", &assets.TextureLoadOptions{})
+	if err != nil {
+		logging.ErrLog.Fatalln("Failed to load texture. Err: ", err)
+	}
+
 	skyboxCmap, err = assets.LoadCubemapTextures(
 		"./res/textures/sb-right.jpg", "./res/textures/sb-left.jpg",
 		"./res/textures/sb-top.jpg", "./res/textures/sb-bottom.jpg",
@@ -517,11 +529,11 @@ func (g *Game) Init() {
 	screenQuadMat.SetUnifInt32("material.diffuse", int32(materials.TextureSlot_Diffuse))
 
 	unlitMat = materials.NewMaterial("Unlit mat", "./res/shaders/simple-unlit.glsl")
-	unlitMat.Settings.Set(materials.MaterialSettings_HasModelMat)
+	unlitMat.Settings.Set(materials.MaterialSettings_HasModelMtx)
 	unlitMat.SetUnifInt32("material.diffuse", int32(materials.TextureSlot_Diffuse))
 
 	whiteMat = materials.NewMaterial("White mat", "./res/shaders/simple.glsl")
-	whiteMat.Settings.Set(materials.MaterialSettings_HasModelMat | materials.MaterialSettings_HasNormalMat)
+	whiteMat.Settings.Set(materials.MaterialSettings_HasModelMtx | materials.MaterialSettings_HasNormalMtx)
 	whiteMat.Shininess = 64
 	whiteMat.DiffuseTex = whiteTex.TexID
 	whiteMat.SpecularTex = blackTex.TexID
@@ -529,7 +541,7 @@ func (g *Game) Init() {
 	whiteMat.EmissionTex = blackTex.TexID
 	whiteMat.SetUnifInt32("material.diffuse", int32(materials.TextureSlot_Diffuse))
 	whiteMat.SetUnifInt32("material.specular", int32(materials.TextureSlot_Specular))
-	// whiteMat.SetUnifInt32("material.normal", int32(materials.TextureSlot_Normal))
+	whiteMat.SetUnifInt32("material.normal", int32(materials.TextureSlot_Normal))
 	whiteMat.SetUnifInt32("material.emission", int32(materials.TextureSlot_Emission))
 	whiteMat.SetUnifVec3("ambientColor", &ambientColor)
 	whiteMat.SetUnifFloat32("material.shininess", whiteMat.Shininess)
@@ -541,7 +553,7 @@ func (g *Game) Init() {
 	whiteMat.SetUnifInt32("spotLightShadowMaps", int32(materials.TextureSlot_ShadowMap_Array1))
 
 	containerMat = materials.NewMaterial("Container mat", "./res/shaders/simple.glsl")
-	containerMat.Settings.Set(materials.MaterialSettings_HasModelMat | materials.MaterialSettings_HasNormalMat)
+	containerMat.Settings.Set(materials.MaterialSettings_HasModelMtx | materials.MaterialSettings_HasNormalMtx)
 	containerMat.Shininess = 64
 	containerMat.DiffuseTex = containerDiffuseTex.TexID
 	containerMat.SpecularTex = containerSpecularTex.TexID
@@ -549,7 +561,7 @@ func (g *Game) Init() {
 	containerMat.EmissionTex = blackTex.TexID
 	containerMat.SetUnifInt32("material.diffuse", int32(materials.TextureSlot_Diffuse))
 	containerMat.SetUnifInt32("material.specular", int32(materials.TextureSlot_Specular))
-	// containerMat.SetUnifInt32("material.normal", int32(materials.TextureSlot_Normal))
+	containerMat.SetUnifInt32("material.normal", int32(materials.TextureSlot_Normal))
 	containerMat.SetUnifInt32("material.emission", int32(materials.TextureSlot_Emission))
 	containerMat.SetUnifVec3("ambientColor", &ambientColor)
 	containerMat.SetUnifFloat32("material.shininess", containerMat.Shininess)
@@ -560,8 +572,28 @@ func (g *Game) Init() {
 	containerMat.SetUnifInt32("pointLightCubeShadowMaps", int32(materials.TextureSlot_Cubemap_Array))
 	containerMat.SetUnifInt32("spotLightShadowMaps", int32(materials.TextureSlot_ShadowMap_Array1))
 
+	groundMat = materials.NewMaterial("Ground mat", "./res/shaders/simple.glsl")
+	groundMat.Settings.Set(materials.MaterialSettings_HasModelMtx | materials.MaterialSettings_HasNormalMtx)
+	groundMat.Shininess = 64
+	groundMat.DiffuseTex = brickwallDiffuseTex.TexID
+	groundMat.SpecularTex = blackTex.TexID
+	groundMat.NormalTex = brickwallNormalTex.TexID
+	groundMat.EmissionTex = blackTex.TexID
+	groundMat.SetUnifInt32("material.diffuse", int32(materials.TextureSlot_Diffuse))
+	groundMat.SetUnifInt32("material.specular", int32(materials.TextureSlot_Specular))
+	groundMat.SetUnifInt32("material.normal", int32(materials.TextureSlot_Normal))
+	groundMat.SetUnifInt32("material.emission", int32(materials.TextureSlot_Emission))
+	groundMat.SetUnifVec3("ambientColor", &ambientColor)
+	groundMat.SetUnifFloat32("material.shininess", groundMat.Shininess)
+	groundMat.SetUnifVec3("dirLight.dir", &dirLight.Dir)
+	groundMat.SetUnifVec3("dirLight.diffuseColor", &dirLight.DiffuseColor)
+	groundMat.SetUnifVec3("dirLight.specularColor", &dirLight.SpecularColor)
+	groundMat.SetUnifInt32("dirLight.shadowMap", int32(materials.TextureSlot_ShadowMap1))
+	groundMat.SetUnifInt32("pointLightCubeShadowMaps", int32(materials.TextureSlot_Cubemap_Array))
+	groundMat.SetUnifInt32("spotLightShadowMaps", int32(materials.TextureSlot_ShadowMap_Array1))
+
 	palleteMat = materials.NewMaterial("Pallete mat", "./res/shaders/simple.glsl")
-	palleteMat.Settings.Set(materials.MaterialSettings_HasModelMat | materials.MaterialSettings_HasNormalMat)
+	palleteMat.Settings.Set(materials.MaterialSettings_HasModelMtx | materials.MaterialSettings_HasNormalMtx)
 	palleteMat.Shininess = 64
 	palleteMat.DiffuseTex = palleteTex.TexID
 	palleteMat.SpecularTex = blackTex.TexID
@@ -569,10 +601,11 @@ func (g *Game) Init() {
 	palleteMat.EmissionTex = blackTex.TexID
 	palleteMat.SetUnifInt32("material.diffuse", int32(materials.TextureSlot_Diffuse))
 	palleteMat.SetUnifInt32("material.specular", int32(materials.TextureSlot_Specular))
-	// palleteMat.SetUnifInt32("material.normal", int32(materials.TextureSlot_Normal))
+	palleteMat.SetUnifInt32("material.normal", int32(materials.TextureSlot_Normal))
 	palleteMat.SetUnifInt32("material.emission", int32(materials.TextureSlot_Emission))
 	palleteMat.SetUnifVec3("ambientColor", &ambientColor)
 	palleteMat.SetUnifFloat32("material.shininess", palleteMat.Shininess)
+	palleteMat.SetUnifVec3("dirLight.dir", &dirLight.Dir)
 	palleteMat.SetUnifVec3("dirLight.diffuseColor", &dirLight.DiffuseColor)
 	palleteMat.SetUnifVec3("dirLight.specularColor", &dirLight.SpecularColor)
 	palleteMat.SetUnifInt32("dirLight.shadowMap", int32(materials.TextureSlot_ShadowMap1))
@@ -580,16 +613,16 @@ func (g *Game) Init() {
 	palleteMat.SetUnifInt32("spotLightShadowMaps", int32(materials.TextureSlot_ShadowMap_Array1))
 
 	debugDepthMat = materials.NewMaterial("Debug depth mat", "./res/shaders/debug-depth.glsl")
-	debugDepthMat.Settings.Set(materials.MaterialSettings_HasModelMat)
+	debugDepthMat.Settings.Set(materials.MaterialSettings_HasModelMtx)
 
 	depthMapMat = materials.NewMaterial("Depth Map mat", "./res/shaders/depth-map.glsl")
-	depthMapMat.Settings.Set(materials.MaterialSettings_HasModelMat)
+	depthMapMat.Settings.Set(materials.MaterialSettings_HasModelMtx)
 
 	arrayDepthMapMat = materials.NewMaterial("Array Depth Map mat", "./res/shaders/array-depth-map.glsl")
-	arrayDepthMapMat.Settings.Set(materials.MaterialSettings_HasModelMat)
+	arrayDepthMapMat.Settings.Set(materials.MaterialSettings_HasModelMtx)
 
 	omnidirDepthMapMat = materials.NewMaterial("Omnidirectional Depth Map mat", "./res/shaders/omnidirectional-depth-map.glsl")
-	omnidirDepthMapMat.Settings.Set(materials.MaterialSettings_HasModelMat)
+	omnidirDepthMapMat.Settings.Set(materials.MaterialSettings_HasModelMtx)
 
 	skyboxMat = materials.NewMaterial("Skybox mat", "./res/shaders/skybox.glsl")
 	skyboxMat.CubemapTex = skyboxCmap.TexID
@@ -674,6 +707,7 @@ func (g *Game) updateLights() {
 	// Directional light
 	whiteMat.ShadowMapTex1 = dirLightDepthMapFbo.Attachments[0].Id
 	containerMat.ShadowMapTex1 = dirLightDepthMapFbo.Attachments[0].Id
+	groundMat.ShadowMapTex1 = dirLightDepthMapFbo.Attachments[0].Id
 	palleteMat.ShadowMapTex1 = dirLightDepthMapFbo.Attachments[0].Id
 
 	// Point lights
@@ -684,35 +718,43 @@ func (g *Game) updateLights() {
 
 		whiteMat.SetUnifVec3(indexString+".pos", &p.Pos)
 		containerMat.SetUnifVec3(indexString+".pos", &p.Pos)
+		groundMat.SetUnifVec3(indexString+".pos", &p.Pos)
 		palleteMat.SetUnifVec3(indexString+".pos", &p.Pos)
 
 		whiteMat.SetUnifVec3(indexString+".diffuseColor", &p.DiffuseColor)
 		containerMat.SetUnifVec3(indexString+".diffuseColor", &p.DiffuseColor)
+		groundMat.SetUnifVec3(indexString+".diffuseColor", &p.DiffuseColor)
 		palleteMat.SetUnifVec3(indexString+".diffuseColor", &p.DiffuseColor)
 
 		whiteMat.SetUnifVec3(indexString+".specularColor", &p.SpecularColor)
 		containerMat.SetUnifVec3(indexString+".specularColor", &p.SpecularColor)
+		groundMat.SetUnifVec3(indexString+".specularColor", &p.SpecularColor)
 		palleteMat.SetUnifVec3(indexString+".specularColor", &p.SpecularColor)
 
 		whiteMat.SetUnifFloat32(indexString+".constant", p.Constant)
 		containerMat.SetUnifFloat32(indexString+".constant", p.Constant)
+		groundMat.SetUnifFloat32(indexString+".constant", p.Constant)
 		palleteMat.SetUnifFloat32(indexString+".constant", p.Constant)
 
 		whiteMat.SetUnifFloat32(indexString+".linear", p.Linear)
 		containerMat.SetUnifFloat32(indexString+".linear", p.Linear)
+		groundMat.SetUnifFloat32(indexString+".linear", p.Linear)
 		palleteMat.SetUnifFloat32(indexString+".linear", p.Linear)
 
 		whiteMat.SetUnifFloat32(indexString+".quadratic", p.Quadratic)
 		containerMat.SetUnifFloat32(indexString+".quadratic", p.Quadratic)
+		groundMat.SetUnifFloat32(indexString+".quadratic", p.Quadratic)
 		palleteMat.SetUnifFloat32(indexString+".quadratic", p.Quadratic)
 
 		whiteMat.SetUnifFloat32(indexString+".farPlane", p.FarPlane)
 		containerMat.SetUnifFloat32(indexString+".farPlane", p.FarPlane)
+		groundMat.SetUnifFloat32(indexString+".farPlane", p.FarPlane)
 		palleteMat.SetUnifFloat32(indexString+".farPlane", p.FarPlane)
 	}
 
 	whiteMat.CubemapArrayTex = pointLightDepthMapFbo.Attachments[0].Id
 	containerMat.CubemapArrayTex = pointLightDepthMapFbo.Attachments[0].Id
+	groundMat.CubemapArrayTex = pointLightDepthMapFbo.Attachments[0].Id
 	palleteMat.CubemapArrayTex = pointLightDepthMapFbo.Attachments[0].Id
 
 	// Spotlights
@@ -726,31 +768,38 @@ func (g *Game) updateLights() {
 
 		whiteMat.SetUnifVec3(indexString+".pos", &l.Pos)
 		containerMat.SetUnifVec3(indexString+".pos", &l.Pos)
+		groundMat.SetUnifVec3(indexString+".pos", &l.Pos)
 		palleteMat.SetUnifVec3(indexString+".pos", &l.Pos)
 
 		whiteMat.SetUnifVec3(indexString+".dir", &l.Dir)
 		containerMat.SetUnifVec3(indexString+".dir", &l.Dir)
+		groundMat.SetUnifVec3(indexString+".dir", &l.Dir)
 		palleteMat.SetUnifVec3(indexString+".dir", &l.Dir)
 
 		whiteMat.SetUnifVec3(indexString+".diffuseColor", &l.DiffuseColor)
 		containerMat.SetUnifVec3(indexString+".diffuseColor", &l.DiffuseColor)
+		groundMat.SetUnifVec3(indexString+".diffuseColor", &l.DiffuseColor)
 		palleteMat.SetUnifVec3(indexString+".diffuseColor", &l.DiffuseColor)
 
 		whiteMat.SetUnifVec3(indexString+".specularColor", &l.SpecularColor)
 		containerMat.SetUnifVec3(indexString+".specularColor", &l.SpecularColor)
+		groundMat.SetUnifVec3(indexString+".specularColor", &l.SpecularColor)
 		palleteMat.SetUnifVec3(indexString+".specularColor", &l.SpecularColor)
 
 		whiteMat.SetUnifFloat32(indexString+".innerCutoff", innerCutoffCos)
 		containerMat.SetUnifFloat32(indexString+".innerCutoff", innerCutoffCos)
+		groundMat.SetUnifFloat32(indexString+".innerCutoff", innerCutoffCos)
 		palleteMat.SetUnifFloat32(indexString+".innerCutoff", innerCutoffCos)
 
 		whiteMat.SetUnifFloat32(indexString+".outerCutoff", outerCutoffCos)
 		containerMat.SetUnifFloat32(indexString+".outerCutoff", outerCutoffCos)
+		groundMat.SetUnifFloat32(indexString+".outerCutoff", outerCutoffCos)
 		palleteMat.SetUnifFloat32(indexString+".outerCutoff", outerCutoffCos)
 	}
 
 	whiteMat.ShadowMapTexArray1 = spotLightDepthMapFbo.Attachments[0].Id
 	containerMat.ShadowMapTexArray1 = spotLightDepthMapFbo.Attachments[0].Id
+	groundMat.ShadowMapTexArray1 = spotLightDepthMapFbo.Attachments[0].Id
 	palleteMat.ShadowMapTexArray1 = spotLightDepthMapFbo.Attachments[0].Id
 }
 
@@ -797,6 +846,7 @@ func (g *Game) showDebugWindow() {
 	if imgui.DragFloat3("Ambient Color", &ambientColor.Data) {
 		whiteMat.SetUnifVec3("ambientColor", &ambientColor)
 		containerMat.SetUnifVec3("ambientColor", &ambientColor)
+		groundMat.SetUnifVec3("ambientColor", &ambientColor)
 		palleteMat.SetUnifVec3("ambientColor", &ambientColor)
 	}
 
@@ -810,18 +860,21 @@ func (g *Game) showDebugWindow() {
 	if imgui.DragFloat3("Direction", &dirLight.Dir.Data) {
 		whiteMat.SetUnifVec3("dirLight.dir", &dirLight.Dir)
 		containerMat.SetUnifVec3("dirLight.dir", &dirLight.Dir)
+		groundMat.SetUnifVec3("dirLight.dir", &dirLight.Dir)
 		palleteMat.SetUnifVec3("dirLight.dir", &dirLight.Dir)
 	}
 
 	if imgui.DragFloat3("Diffuse Color", &dirLight.DiffuseColor.Data) {
 		whiteMat.SetUnifVec3("dirLight.diffuseColor", &dirLight.DiffuseColor)
 		containerMat.SetUnifVec3("dirLight.diffuseColor", &dirLight.DiffuseColor)
+		groundMat.SetUnifVec3("dirLight.diffuseColor", &dirLight.DiffuseColor)
 		palleteMat.SetUnifVec3("dirLight.diffuseColor", &dirLight.DiffuseColor)
 	}
 
 	if imgui.DragFloat3("Specular Color", &dirLight.SpecularColor.Data) {
 		whiteMat.SetUnifVec3("dirLight.specularColor", &dirLight.SpecularColor)
 		containerMat.SetUnifVec3("dirLight.specularColor", &dirLight.SpecularColor)
+		groundMat.SetUnifVec3("dirLight.specularColor", &dirLight.SpecularColor)
 		palleteMat.SetUnifVec3("dirLight.specularColor", &dirLight.SpecularColor)
 	}
 
@@ -838,6 +891,7 @@ func (g *Game) showDebugWindow() {
 	if imgui.DragFloat("Specular Shininess", &whiteMat.Shininess) {
 		whiteMat.SetUnifFloat32("material.shininess", whiteMat.Shininess)
 		containerMat.SetUnifFloat32("material.shininess", whiteMat.Shininess)
+		groundMat.SetUnifFloat32("material.shininess", whiteMat.Shininess)
 		palleteMat.SetUnifFloat32("material.shininess", whiteMat.Shininess)
 	}
 
@@ -861,18 +915,21 @@ func (g *Game) showDebugWindow() {
 			if imgui.DragFloat3("Pos", &pl.Pos.Data) {
 				whiteMat.SetUnifVec3(indexString+".pos", &pl.Pos)
 				containerMat.SetUnifVec3(indexString+".pos", &pl.Pos)
+				groundMat.SetUnifVec3(indexString+".pos", &pl.Pos)
 				palleteMat.SetUnifVec3(indexString+".pos", &pl.Pos)
 			}
 
 			if imgui.DragFloat3("Diffuse Color", &pl.DiffuseColor.Data) {
 				whiteMat.SetUnifVec3(indexString+".diffuseColor", &pl.DiffuseColor)
 				containerMat.SetUnifVec3(indexString+".diffuseColor", &pl.DiffuseColor)
+				groundMat.SetUnifVec3(indexString+".diffuseColor", &pl.DiffuseColor)
 				palleteMat.SetUnifVec3(indexString+".diffuseColor", &pl.DiffuseColor)
 			}
 
 			if imgui.DragFloat3("Specular Color", &pl.SpecularColor.Data) {
 				whiteMat.SetUnifVec3(indexString+".specularColor", &pl.SpecularColor)
 				containerMat.SetUnifVec3(indexString+".specularColor", &pl.SpecularColor)
+				groundMat.SetUnifVec3(indexString+".specularColor", &pl.SpecularColor)
 				palleteMat.SetUnifVec3(indexString+".specularColor", &pl.SpecularColor)
 			}
 
@@ -901,24 +958,28 @@ func (g *Game) showDebugWindow() {
 			if imgui.DragFloat3("Pos", &l.Pos.Data) {
 				whiteMat.SetUnifVec3(indexString+".pos", &l.Pos)
 				containerMat.SetUnifVec3(indexString+".pos", &l.Pos)
+				groundMat.SetUnifVec3(indexString+".pos", &l.Pos)
 				palleteMat.SetUnifVec3(indexString+".pos", &l.Pos)
 			}
 
 			if imgui.DragFloat3("Dir", &l.Dir.Data) {
 				whiteMat.SetUnifVec3(indexString+".dir", &l.Dir)
 				containerMat.SetUnifVec3(indexString+".dir", &l.Dir)
+				groundMat.SetUnifVec3(indexString+".dir", &l.Dir)
 				palleteMat.SetUnifVec3(indexString+".dir", &l.Dir)
 			}
 
 			if imgui.DragFloat3("Diffuse Color", &l.DiffuseColor.Data) {
 				whiteMat.SetUnifVec3(indexString+".diffuseColor", &l.DiffuseColor)
 				containerMat.SetUnifVec3(indexString+".diffuseColor", &l.DiffuseColor)
+				groundMat.SetUnifVec3(indexString+".diffuseColor", &l.DiffuseColor)
 				palleteMat.SetUnifVec3(indexString+".diffuseColor", &l.DiffuseColor)
 			}
 
 			if imgui.DragFloat3("Specular Color", &l.SpecularColor.Data) {
 				whiteMat.SetUnifVec3(indexString+".specularColor", &l.SpecularColor)
 				containerMat.SetUnifVec3(indexString+".specularColor", &l.SpecularColor)
+				groundMat.SetUnifVec3(indexString+".specularColor", &l.SpecularColor)
 				palleteMat.SetUnifVec3(indexString+".specularColor", &l.SpecularColor)
 			}
 
@@ -928,6 +989,7 @@ func (g *Game) showDebugWindow() {
 
 				whiteMat.SetUnifFloat32(indexString+".innerCutoff", cos)
 				containerMat.SetUnifFloat32(indexString+".innerCutoff", cos)
+				groundMat.SetUnifFloat32(indexString+".innerCutoff", cos)
 				palleteMat.SetUnifFloat32(indexString+".innerCutoff", cos)
 			}
 
@@ -937,6 +999,7 @@ func (g *Game) showDebugWindow() {
 
 				whiteMat.SetUnifFloat32(indexString+".outerCutoff", cos)
 				containerMat.SetUnifFloat32(indexString+".outerCutoff", cos)
+				groundMat.SetUnifFloat32(indexString+".outerCutoff", cos)
 				palleteMat.SetUnifFloat32(indexString+".outerCutoff", cos)
 			}
 
@@ -1033,8 +1096,8 @@ func (g *Game) updateCameraPos() {
 }
 
 var (
-	renderDirLightShadows   = true
-	renderPointLightShadows = true
+	renderDirLightShadows   = false
+	renderPointLightShadows = false
 	renderSpotLightShadows  = true
 
 	rotatingCubeSpeedDeg1 float32 = 45
@@ -1049,6 +1112,7 @@ func (g *Game) Render() {
 
 	whiteMat.SetUnifVec3("camPos", &cam.Pos)
 	containerMat.SetUnifVec3("camPos", &cam.Pos)
+	groundMat.SetUnifVec3("camPos", &cam.Pos)
 	palleteMat.SetUnifVec3("camPos", &cam.Pos)
 
 	rotatingCubeTrMat1.Rotate(rotatingCubeSpeedDeg1*gglm.Deg2Rad*timing.DT(), 0, 1, 0)
@@ -1092,6 +1156,7 @@ func (g *Game) renderDirectionalLightShadowmap() {
 
 	whiteMat.SetUnifMat4("dirLightProjViewMat", &dirLightProjViewMat)
 	containerMat.SetUnifMat4("dirLightProjViewMat", &dirLightProjViewMat)
+	groundMat.SetUnifMat4("dirLightProjViewMat", &dirLightProjViewMat)
 	palleteMat.SetUnifMat4("dirLightProjViewMat", &dirLightProjViewMat)
 
 	depthMapMat.SetUnifMat4("projViewMat", &dirLightProjViewMat)
@@ -1133,6 +1198,7 @@ func (g *Game) renderSpotLightShadowmaps() {
 
 		whiteMat.SetUnifMat4(projViewMatIndexStr, &projViewMat)
 		containerMat.SetUnifMat4(projViewMatIndexStr, &projViewMat)
+		groundMat.SetUnifMat4(projViewMatIndexStr, &projViewMat)
 		palleteMat.SetUnifMat4(projViewMatIndexStr, &projViewMat)
 
 		// Set depth uniforms
@@ -1209,11 +1275,13 @@ func (g *Game) RenderScene(overrideMat *materials.Material) {
 	sunMat := &palleteMat
 	chairMat := &palleteMat
 	cubeMat := &containerMat
+	groundMat := &groundMat
 
 	if overrideMat != nil {
 		sunMat = overrideMat
 		chairMat = overrideMat
 		cubeMat = overrideMat
+		groundMat = overrideMat
 	}
 
 	// Draw dir light
@@ -1233,7 +1301,7 @@ func (g *Game) RenderScene(overrideMat *materials.Material) {
 
 	// Ground
 	groundTrMat := gglm.NewTrMatId()
-	window.Rend.DrawMesh(&cubeMesh, groundTrMat.Translate(0, -3, 0).Scale(20, 1, 20), cubeMat)
+	window.Rend.DrawMesh(&cubeMesh, groundTrMat.Translate(0, -3, 0).Scale(20, 1, 20), groundMat)
 
 	// Cubes
 	tempModelMatrix.Translate(-6, 0, 0)
@@ -1283,6 +1351,7 @@ func updateAllProjViewMats(projMat, viewMat gglm.Mat4) {
 	unlitMat.SetUnifMat4("projViewMat", projViewMat)
 	whiteMat.SetUnifMat4("projViewMat", projViewMat)
 	containerMat.SetUnifMat4("projViewMat", projViewMat)
+	groundMat.SetUnifMat4("projViewMat", projViewMat)
 	palleteMat.SetUnifMat4("projViewMat", projViewMat)
 	debugDepthMat.SetUnifMat4("projViewMat", projViewMat)
 

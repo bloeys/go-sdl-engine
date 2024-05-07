@@ -29,11 +29,11 @@ func (r *Rend3DGL) DrawMesh(mesh *meshes.Mesh, modelMat *gglm.TrMat, mat *materi
 		r.BoundMat = mat
 	}
 
-	if mat.Settings.Has(materials.MaterialSettings_HasModelMat) {
+	if mat.Settings.Has(materials.MaterialSettings_HasModelMtx) {
 		mat.SetUnifMat4("modelMat", &modelMat.Mat4)
 	}
 
-	if mat.Settings.Has(materials.MaterialSettings_HasNormalMat) {
+	if mat.Settings.Has(materials.MaterialSettings_HasNormalMtx) {
 		normalMat := modelMat.Clone().InvertAndTranspose().ToMat3()
 		mat.SetUnifMat3("normalMat", &normalMat)
 	}

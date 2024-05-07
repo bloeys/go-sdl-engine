@@ -16,14 +16,38 @@ type SubMesh struct {
 }
 
 type Mesh struct {
-	Name      string
+	Name string
+	/*
+		Vao has the following shader attribute layout:
+			- Loc0: Pos
+			- Loc1: Normal
+			- Loc2: UV0
+			- Loc3: Tangent
+			- (Optional) Color
+
+		Optional stuff appear in the order in this list, depending on what other optional stuff exists.
+
+		For example:
+			- If color exists it will be in Loc3, otherwise it is unset
+	*/
 	Vao       buffers.VertexArray
 	SubMeshes []SubMesh
 }
 
+var (
+	// DefaultMeshLoadFlags are the flags always applied when loading a new mesh regardless
+	// of what post process flags are used when loading a mesh.
+	//
+	// Defaults to: asig.PostProcessTriangulate | asig.PostProcessCalcTangentSpace;
+	// Note: changing this will break the normal lit shaders, which expect tangents to be there
+	DefaultMeshLoadFlags asig.PostProcess = asig.PostProcessTriangulate | asig.PostProcessCalcTangentSpace
+)
+
 func NewMesh(name, modelPath string, postProcessFlags asig.PostProcess) (Mesh, error) {
 
-	scene, release, err := asig.ImportFile(modelPath, asig.PostProcessTriangulate|postProcessFlags)
+	finalPostProcessFlags := DefaultMeshLoadFlags | postProcessFlags
+
+	scene, release, err := asig.ImportFile(modelPath, finalPostProcessFlags)
 	if err != nil {
 		return Mesh{}, errors.New("Failed to load model. Err: " + err.Error())
 	}
@@ -42,8 +66,17 @@ func NewMesh(name, modelPath string, postProcessFlags asig.PostProcess) (Mesh, e
 	vbo := buffers.NewVertexBuffer()
 	ibo := buffers.NewIndexBuffer()
 
-	// Initial sizes assuming one submesh that has vertex pos+normals+texCoords, and 3 indices per face
-	var vertexBufData []float32 = make([]float32, 0, len(scene.Meshes[0].Vertices)*3*3*2)
+	// Estimate a useful prealloc capacity based on the first submesh that has vertex pos+normals+tangents+texCoords
+	vertexBufDataCapacity := len(scene.Meshes[0].Vertices) * 3 * 3 * 3 * 2
+
+	// Increase capacity depending on what the mesh has
+	if len(scene.Meshes[0].ColorSets) > 0 && len(scene.Meshes[0].ColorSets[0]) > 0 {
+		vertexBufDataCapacity *= 4
+	}
+
+	var vertexBufData []float32 = make([]float32, 0, vertexBufDataCapacity)
+
+	// Initial size assumes 3 indices per face
 	var indexBufData []uint32 = make([]uint32, 0, len(scene.Meshes[0].Faces)*3)
 
 	// fmt.Printf("\nMesh %s has %d meshe(s) with first mesh having %d vertices\n", name, len(scene.Meshes), len(scene.Meshes[0].Vertices))
@@ -52,12 +85,25 @@ func NewMesh(name, modelPath string, postProcessFlags asig.PostProcess) (Mesh, e
 
 		sceneMesh := scene.Meshes[i]
 
+		// We always want tangents and UV0
+		if len(sceneMesh.Tangents) == 0 {
+			sceneMesh.Tangents = make([]gglm.Vec3, len(sceneMesh.Vertices))
+		}
+
 		if len(sceneMesh.TexCoords[0]) == 0 {
 			sceneMesh.TexCoords[0] = make([]gglm.Vec3, len(sceneMesh.Vertices))
 		}
 
-		layoutToUse := []buffers.Element{{ElementType: buffers.DataTypeVec3}, {ElementType: buffers.DataTypeVec3}, {ElementType: buffers.DataTypeVec2}}
-		if len(sceneMesh.ColorSets) > 0 && len(sceneMesh.ColorSets[0]) > 0 {
+		hasColorSet0 := len(sceneMesh.ColorSets) > 0 && len(sceneMesh.ColorSets[0]) > 0
+
+		layoutToUse := []buffers.Element{
+			{ElementType: buffers.DataTypeVec3}, // Position
+			{ElementType: buffers.DataTypeVec3}, // Normals
+			{ElementType: buffers.DataTypeVec3}, // Tangents
+			{ElementType: buffers.DataTypeVec2}, // UV0
+		}
+
+		if hasColorSet0 {
 			layoutToUse = append(layoutToUse, buffers.Element{ElementType: buffers.DataTypeVec4})
 		}
 
@@ -79,8 +125,14 @@ func NewMesh(name, modelPath string, postProcessFlags asig.PostProcess) (Mesh, e
 			}
 		}
 
-		arrs := []arrToInterleave{{V3s: sceneMesh.Vertices}, {V3s: sceneMesh.Normals}, {V2s: v3sToV2s(sceneMesh.TexCoords[0])}}
-		if len(sceneMesh.ColorSets) > 0 && len(sceneMesh.ColorSets[0]) > 0 {
+		arrs := []arrToInterleave{
+			{V3s: sceneMesh.Vertices},
+			{V3s: sceneMesh.Normals},
+			{V3s: sceneMesh.Tangents},
+			{V2s: v3sToV2s(sceneMesh.TexCoords[0])},
+		}
+
+		if hasColorSet0 {
 			arrs = append(arrs, arrToInterleave{V4s: sceneMesh.ColorSets[0]})
 		}
 

@@ -1,55 +1,27 @@
 //shader:vertex
 #version 410
 
+#define NUM_SPOT_LIGHTS 4
+#define NUM_POINT_LIGHTS 8
+
+//
+// Inputs
+//
 layout(location=0) in vec3 vertPosIn;
 layout(location=1) in vec3 vertNormalIn;
-layout(location=2) in vec2 vertUV0In;
-layout(location=3) in vec3 vertColorIn;
+layout(location=2) in vec3 vertTangentIn;
+layout(location=3) in vec2 vertUV0In;
+layout(location=4) in vec3 vertColorIn;
 
+//
+// Uniforms
+//
+uniform vec3 camPos;
 uniform mat4 modelMat;
 uniform mat3 normalMat;
 uniform mat4 projViewMat;
 uniform mat4 dirLightProjViewMat;
-
-#define NUM_SPOT_LIGHTS 4
 uniform mat4 spotLightProjViewMats[NUM_SPOT_LIGHTS];
-
-out vec3 vertNormal;
-out vec2 vertUV0;
-out vec3 vertColor;
-out vec3 fragPos;
-out vec4 fragPosDirLight;
-out vec4 fragPosSpotLight[NUM_SPOT_LIGHTS];
-
-void main()
-{
-    vertNormal = normalMat * vertNormalIn;
-    
-    vertUV0 = vertUV0In;
-    vertColor = vertColorIn;
-
-    vec4 modelVert = modelMat * vec4(vertPosIn, 1);
-    fragPos = modelVert.xyz;
-    fragPosDirLight = dirLightProjViewMat * vec4(fragPos, 1);
-
-    for (int i = 0; i < NUM_SPOT_LIGHTS; i++)
-        fragPosSpotLight[i] = spotLightProjViewMats[i] * vec4(fragPos, 1);
-
-    gl_Position = projViewMat * modelVert;
-}
-
-//shader:fragment
-#version 410
-
-struct Material {
-    sampler2D diffuse;
-    sampler2D specular;
-    // sampler2D normal;
-    sampler2D emission;
-    float shininess;
-};
-
-uniform Material material;
 
 struct DirLight {
     vec3 dir;
@@ -57,7 +29,6 @@ struct DirLight {
     vec3 specularColor;
     sampler2D shadowMap;
 };
-
 uniform DirLight dirLight;
 
 struct PointLight {
@@ -69,8 +40,137 @@ struct PointLight {
     float quadratic;
     float farPlane;
 };
+uniform PointLight pointLights[NUM_POINT_LIGHTS];
 
+struct SpotLight {
+    vec3 pos;
+    vec3 dir;
+    vec3 diffuseColor;
+    vec3 specularColor;
+    float innerCutoff;
+    float outerCutoff;
+};
+uniform SpotLight spotLights[NUM_SPOT_LIGHTS];
+
+//
+// Outputs
+//
+out vec2 vertUV0;
+out vec3 vertColor;
+
+out vec3 fragPos;
+out vec3 fragPosDirLight;
+out vec4 fragPosSpotLight[NUM_SPOT_LIGHTS];
+
+out vec3 tangentCamPos;
+out vec3 tangentFragPos;
+out vec3 tangentVertNormal;
+out vec3 tangentDirLightDir;
+out vec3 tangentSpotLightPositions[NUM_SPOT_LIGHTS];
+out vec3 tangentSpotLightDirections[NUM_SPOT_LIGHTS];
+out vec3 tangentPointLightPositions[NUM_POINT_LIGHTS];
+
+void main()
+{
+    vertUV0 = vertUV0In;
+    vertColor = vertColorIn;
+    vec4 modelVert = modelMat * vec4(vertPosIn, 1);
+
+    // Tangent-BiTangent-Normal matrix for normal mapping
+    vec3 T = normalize(vec3(modelMat * vec4(vertTangentIn,   0.0)));
+    vec3 N = normalize(vec3(modelMat * vec4(vertNormalIn,    0.0)));
+
+    // Ensure T is orthogonal with respect to N
+    T = normalize(T - dot(T, N) * N);
+
+    vec3 B = cross(N, T);
+    mat3 tbnMtx = transpose(mat3(T, B, N));
+
+    tangentVertNormal = tbnMtx * normalMat * vertNormalIn;
+
+    // Lighting related
+    fragPos = modelVert.xyz;
+    fragPosDirLight = vec3(dirLightProjViewMat * vec4(fragPos, 1));
+
+    tangentCamPos = tbnMtx * camPos;
+    tangentFragPos = tbnMtx * fragPos;
+    tangentDirLightDir = tbnMtx * dirLight.dir;
+
+    for (int i = 0; i < NUM_POINT_LIGHTS; i++)
+        tangentPointLightPositions[i] = tbnMtx * pointLights[i].pos;
+
+    for (int i = 0; i < NUM_SPOT_LIGHTS; i++)
+    {
+        fragPosSpotLight[i] = spotLightProjViewMats[i] * vec4(fragPos, 1);
+
+        tangentSpotLightPositions[i] = tbnMtx * spotLights[i].pos;
+        tangentSpotLightDirections[i] = tbnMtx * spotLights[i].dir;
+    }
+
+    gl_Position = projViewMat * modelVert;
+}
+
+//shader:fragment
+#version 410
+
+/*
+    Note that while all lighting calculations are done in tangent space,
+    shadow mapping is done in world space.
+
+    The exception is the bias calculation. Since the bias relies on the normal
+    and the normal is in tangent space, we use a tangent space fragment position
+    with it, but the rest of shadow processing is in world space.
+*/
+
+#define NUM_SPOT_LIGHTS 4
 #define NUM_POINT_LIGHTS 8
+
+//
+// Inputs
+//
+in vec3 fragPos;
+in vec2 vertUV0;
+in vec3 vertColor;
+in vec3 fragPosDirLight;
+in vec4 fragPosSpotLight[NUM_SPOT_LIGHTS];
+
+in vec3 tangentCamPos;
+in vec3 tangentFragPos;
+in vec3 tangentVertNormal;
+in vec3 tangentDirLightDir;
+in vec3 tangentSpotLightPositions[NUM_SPOT_LIGHTS];
+in vec3 tangentSpotLightDirections[NUM_SPOT_LIGHTS];
+in vec3 tangentPointLightPositions[NUM_POINT_LIGHTS];
+
+//
+// Uniforms
+//
+struct Material {
+    sampler2D diffuse;
+    sampler2D specular;
+    sampler2D normal;
+    sampler2D emission;
+    float shininess;
+};
+uniform Material material;
+
+struct DirLight {
+    vec3 dir;
+    vec3 diffuseColor;
+    vec3 specularColor;
+    sampler2D shadowMap;
+};
+uniform DirLight dirLight;
+
+struct PointLight {
+    vec3 pos;
+    vec3 diffuseColor;
+    vec3 specularColor;
+    float constant;
+    float linear;
+    float quadratic;
+    float farPlane;
+};
 uniform PointLight pointLights[NUM_POINT_LIGHTS];
 uniform samplerCubeArray pointLightCubeShadowMaps;
 
@@ -82,37 +182,29 @@ struct SpotLight {
     float innerCutoff;
     float outerCutoff;
 };
-
-#define NUM_SPOT_LIGHTS 4
 uniform SpotLight spotLights[NUM_SPOT_LIGHTS];
 uniform sampler2DArray spotLightShadowMaps;
 
-uniform vec3 camPos;
 uniform vec3 ambientColor = vec3(0.2, 0.2, 0.2);
 
-in vec3 vertColor;
-in vec3 vertNormal;
-in vec2 vertUV0;
-in vec3 fragPos;
-in vec4 fragPosDirLight;
-in vec4 fragPosSpotLight[NUM_SPOT_LIGHTS];
-
+//
+// Outputs
+//
 out vec4 fragColor;
 
+//
 // Global variables used as cache for lighting calculations
+//
+vec3 tangentViewDir;
 vec4 diffuseTexColor;
 vec4 specularTexColor;
 vec4 emissionTexColor;
 vec3 normalizedVertNorm;
-vec3 viewDir;
 
-float CalcDirShadow(sampler2D shadowMap, vec3 lightDir)
+float CalcDirShadow(sampler2D shadowMap, vec3 tangentLightDir)
 {
-    // Move from clip space to NDC
-    vec3 projCoords = fragPosDirLight.xyz / fragPosDirLight.w;
-
     // Move from [-1,1] to [0, 1]
-    projCoords = projCoords * 0.5 + 0.5;
+    vec3 projCoords = fragPosDirLight * 0.5 + 0.5;
 
     // If sampling outside the depth texture then force 'no shadow'
     if(projCoords.z > 1)
@@ -123,7 +215,7 @@ float CalcDirShadow(sampler2D shadowMap, vec3 lightDir)
 
     // Bias in the range [0.005, 0.05] depending on the angle, where a higher
     // angle gives a higher bias, as shadow acne gets worse with angle
-    float bias = max(0.05 * (1 - dot(normalizedVertNorm, lightDir)), 0.005);
+    float bias = max(0.05 * (1 - dot(normalizedVertNorm, tangentLightDir)), 0.005);
 
     // 'Percentage Close Filtering'.
     // Basically get soft shadows by averaging this texel and surrounding ones
@@ -148,14 +240,14 @@ float CalcDirShadow(sampler2D shadowMap, vec3 lightDir)
 
 vec3 CalcDirLight()
 {
-    vec3 lightDir = normalize(-dirLight.dir);
+    vec3 lightDir = normalize(-tangentDirLightDir);
 
     // Diffuse
     float diffuseAmount = max(0.0, dot(normalizedVertNorm, lightDir));
     vec3 finalDiffuse = diffuseAmount * dirLight.diffuseColor * diffuseTexColor.rgb;
 
     // Specular
-    vec3 halfwayDir = normalize(lightDir + viewDir);
+    vec3 halfwayDir = normalize(lightDir + tangentViewDir);
     float specularAmount = pow(max(dot(normalizedVertNorm, halfwayDir), 0.0), material.shininess);
     vec3 finalSpecular = specularAmount * dirLight.specularColor * specularTexColor.rgb;
 
@@ -165,9 +257,9 @@ vec3 CalcDirLight()
     return (finalDiffuse + finalSpecular) * (1 - shadow);
 }
 
-float CalcPointShadow(int lightIndex, vec3 lightPos, vec3 lightDir, float farPlane) {
+float CalcPointShadow(int lightIndex, vec3 worldLightPos, vec3 tangentLightDir, float farPlane) {
 
-    vec3 lightToFrag = fragPos - lightPos;
+    vec3 lightToFrag = fragPos - worldLightPos;
 
     float closestDepth = texture(pointLightCubeShadowMaps, vec4(lightToFrag, lightIndex)).r;
 
@@ -177,7 +269,8 @@ float CalcPointShadow(int lightIndex, vec3 lightPos, vec3 lightDir, float farPla
     // Get depth of current fragment
     float currentDepth = length(lightToFrag);
 
-    float bias = max(0.05 * (1 - dot(normalizedVertNorm, lightDir)), 0.005);
+    float bias = max(0.05 * (1 - dot(normalizedVertNorm, tangentLightDir)), 0.005);
+
     float shadow = currentDepth -  bias > closestDepth ? 1.0 : 0.0;
 
     return shadow;
@@ -190,28 +283,29 @@ vec3 CalcPointLight(PointLight pointLight, int lightIndex)
         return vec3(0);
     }
 
-    vec3 lightDir = normalize(pointLight.pos - fragPos);
+    vec3 tangentLightPos = tangentPointLightPositions[lightIndex];
+    vec3 tangentLightDir = normalize(tangentLightPos - tangentFragPos);
 
     // Diffuse
-    float diffuseAmount = max(0.0, dot(normalizedVertNorm, lightDir));
+    float diffuseAmount = max(0.0, dot(normalizedVertNorm, tangentLightDir));
     vec3 finalDiffuse = diffuseAmount * pointLight.diffuseColor * diffuseTexColor.rgb;
 
     // Specular
-    vec3 halfwayDir = normalize(lightDir + viewDir);
+    vec3 halfwayDir = normalize(tangentLightDir + tangentViewDir);
     float specularAmount = pow(max(dot(normalizedVertNorm, halfwayDir), 0.0), material.shininess);
     vec3 finalSpecular = specularAmount * pointLight.specularColor * specularTexColor.rgb;
 
     // Attenuation
-    float distToLight = length(pointLight.pos - fragPos);
+    float distToLight = length(tangentLightPos - tangentFragPos);
     float attenuation = 1 / (pointLight.constant + pointLight.linear * distToLight + pointLight.quadratic * (distToLight * distToLight));  
 
     // Shadow
-    float shadow = CalcPointShadow(lightIndex, pointLight.pos, lightDir, pointLight.farPlane);
+    float shadow = CalcPointShadow(lightIndex, pointLight.pos, tangentLightDir, pointLight.farPlane);
 
     return (finalDiffuse + finalSpecular) * attenuation * (1 - shadow);
 }
 
-float CalcSpotShadow(vec3 lightDir, int lightIndex)
+float CalcSpotShadow(vec3 tangentLightDir, int lightIndex)
 {
     // Move from clip space to NDC
     vec3 projCoords = fragPosSpotLight[lightIndex].xyz / fragPosSpotLight[lightIndex].w;
@@ -228,7 +322,7 @@ float CalcSpotShadow(vec3 lightDir, int lightIndex)
 
     // Bias in the range [0.005, 0.05] depending on the angle, where a higher
     // angle gives a higher bias, as shadow acne gets worse with angle
-    float bias = max(0.05 * (1 - dot(normalizedVertNorm, lightDir)), 0.005);
+    float bias = max(0.05 * (1 - dot(normalizedVertNorm, tangentLightDir)), 0.005);
 
     // 'Percentage Close Filtering'.
     // Basically get soft shadows by averaging this texel and surrounding ones
@@ -256,12 +350,13 @@ vec3 CalcSpotLight(SpotLight light, int lightIndex)
     if (light.innerCutoff == 0)
         return vec3(0);
 
-    vec3 fragToLightDir = normalize(light.pos - fragPos);
+    vec3 tangentLightDir = tangentSpotLightDirections[lightIndex];
+    vec3 fragToLightDir = normalize(tangentSpotLightPositions[lightIndex] - tangentFragPos);
 
     // Spot light cone with full intensity within inner cutoff,
     // and falloff between inner-outer cutoffs, and zero
     // light after outer cutoff
-    float theta = dot(fragToLightDir, normalize(-light.dir));
+    float theta = dot(fragToLightDir, normalize(-tangentLightDir));
     float epsilon = (light.innerCutoff - light.outerCutoff);
     float intensity = clamp((theta - light.outerCutoff) / epsilon, float(0), float(1));
 
@@ -273,7 +368,7 @@ vec3 CalcSpotLight(SpotLight light, int lightIndex)
     vec3 finalDiffuse = diffuseAmount * light.diffuseColor * diffuseTexColor.rgb;
 
     // Specular
-    vec3 halfwayDir = normalize(fragToLightDir + viewDir);
+    vec3 halfwayDir = normalize(fragToLightDir + tangentViewDir);
     float specularAmount = pow(max(dot(normalizedVertNorm, halfwayDir), 0.0), material.shininess);
     vec3 finalSpecular = specularAmount * light.specularColor * specularTexColor.rgb;
 
@@ -286,12 +381,20 @@ vec3 CalcSpotLight(SpotLight light, int lightIndex)
 void main()
 {
     // Shared values
+    tangentViewDir = normalize(tangentCamPos - tangentFragPos);
     diffuseTexColor = texture(material.diffuse, vertUV0);
     specularTexColor = texture(material.specular, vertUV0);
     emissionTexColor = texture(material.emission, vertUV0);
 
-    normalizedVertNorm = normalize(vertNormal);
-    viewDir = normalize(camPos - fragPos);
+    // Read normal data encoded [0,1]
+    normalizedVertNorm = texture(material.normal, vertUV0).rgb;
+
+    // Handle no normal map
+    if (normalizedVertNorm == vec3(0))
+        normalizedVertNorm = normalize(tangentVertNormal);
+    else 
+        // Remap normal to [-1,1]
+        normalizedVertNorm = normalize(normalizedVertNorm * 2.0 - 1.0);
 
     // Light contributions
     vec3 finalColor = CalcDirLight();
