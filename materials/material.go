@@ -3,6 +3,7 @@ package materials
 import (
 	"github.com/bloeys/gglm/gglm"
 	"github.com/bloeys/nmage/assert"
+	"github.com/bloeys/nmage/assets"
 	"github.com/bloeys/nmage/logging"
 	"github.com/bloeys/nmage/shaders"
 	"github.com/go-gl/gl/v4.1-core/gl"
@@ -49,7 +50,7 @@ type Material struct {
 	UnifLocs   map[string]int32
 	AttribLocs map[string]int32
 
-	// @TODO do this in a better way. Perhaps something like how we do fbo attachments
+	// @TODO: Do this in a better way?. Perhaps something like how we do fbo attachments? Or keep it?
 	// Phong shading
 	DiffuseTex  uint32
 	SpecularTex uint32
@@ -72,26 +73,19 @@ func (m *Material) Bind() {
 
 	m.ShaderProg.Bind()
 
-	if m.DiffuseTex != 0 {
-		gl.ActiveTexture(uint32(gl.TEXTURE0 + TextureSlot_Diffuse))
-		gl.BindTexture(gl.TEXTURE_2D, m.DiffuseTex)
-	}
+	gl.ActiveTexture(uint32(gl.TEXTURE0 + TextureSlot_Diffuse))
+	gl.BindTexture(gl.TEXTURE_2D, m.DiffuseTex)
 
-	if m.SpecularTex != 0 {
-		gl.ActiveTexture(uint32(gl.TEXTURE0 + TextureSlot_Specular))
-		gl.BindTexture(gl.TEXTURE_2D, m.SpecularTex)
-	}
+	gl.ActiveTexture(uint32(gl.TEXTURE0 + TextureSlot_Specular))
+	gl.BindTexture(gl.TEXTURE_2D, m.SpecularTex)
 
-	if m.NormalTex != 0 {
-		gl.ActiveTexture(uint32(gl.TEXTURE0 + TextureSlot_Normal))
-		gl.BindTexture(gl.TEXTURE_2D, m.NormalTex)
-	}
+	gl.ActiveTexture(uint32(gl.TEXTURE0 + TextureSlot_Normal))
+	gl.BindTexture(gl.TEXTURE_2D, m.NormalTex)
 
-	if m.EmissionTex != 0 {
-		gl.ActiveTexture(uint32(gl.TEXTURE0 + TextureSlot_Emission))
-		gl.BindTexture(gl.TEXTURE_2D, m.EmissionTex)
-	}
+	gl.ActiveTexture(uint32(gl.TEXTURE0 + TextureSlot_Emission))
+	gl.BindTexture(gl.TEXTURE_2D, m.EmissionTex)
 
+	// @TODO: Have defaults for these
 	if m.CubemapTex != 0 {
 		gl.ActiveTexture(uint32(gl.TEXTURE0 + TextureSlot_Cubemap))
 		gl.BindTexture(gl.TEXTURE_CUBE_MAP, m.CubemapTex)
@@ -194,7 +188,17 @@ func NewMaterial(matName, shaderPath string) Material {
 		logging.ErrLog.Fatalf("Failed to create new material '%s'. Err: %s\n", matName, err.Error())
 	}
 
-	return Material{Name: matName, ShaderProg: shdrProg, UnifLocs: make(map[string]int32), AttribLocs: make(map[string]int32)}
+	return Material{
+		Name:       matName,
+		ShaderProg: shdrProg,
+		UnifLocs:   make(map[string]int32),
+		AttribLocs: make(map[string]int32),
+
+		DiffuseTex:  assets.DefaultDiffuseTexId.TexID,
+		SpecularTex: assets.DefaultSpecularTexId.TexID,
+		NormalTex:   assets.DefaultNormalTexId.TexID,
+		EmissionTex: assets.DefaultEmissionTexId.TexID,
+	}
 }
 
 func NewMaterialSrc(matName string, shaderSrc []byte) Material {
@@ -204,5 +208,15 @@ func NewMaterialSrc(matName string, shaderSrc []byte) Material {
 		logging.ErrLog.Fatalf("Failed to create new material '%s'. Err: %s\n", matName, err.Error())
 	}
 
-	return Material{Name: matName, ShaderProg: shdrProg, UnifLocs: make(map[string]int32), AttribLocs: make(map[string]int32)}
+	return Material{
+		Name:       matName,
+		ShaderProg: shdrProg,
+		UnifLocs:   make(map[string]int32),
+		AttribLocs: make(map[string]int32),
+
+		DiffuseTex:  assets.DefaultDiffuseTexId.TexID,
+		SpecularTex: assets.DefaultSpecularTexId.TexID,
+		NormalTex:   assets.DefaultNormalTexId.TexID,
+		EmissionTex: assets.DefaultEmissionTexId.TexID,
+	}
 }

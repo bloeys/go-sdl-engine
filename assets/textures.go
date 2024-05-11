@@ -23,6 +23,15 @@ const (
 	ColorFormat_RGBA8
 )
 
+var (
+	DefaultBlackTexId    Texture
+	DefaultWhiteTexId    Texture
+	DefaultDiffuseTexId  Texture
+	DefaultSpecularTexId Texture
+	DefaultNormalTexId   Texture
+	DefaultEmissionTexId Texture
+)
+
 type Texture struct {
 	// Path only exists for textures loaded from disk
 	Path string

@@ -475,16 +475,6 @@ func (g *Game) Init() {
 	}
 
 	//Load textures
-	whiteTex, err := assets.LoadTexturePNG("./res/textures/white.png", &assets.TextureLoadOptions{})
-	if err != nil {
-		logging.ErrLog.Fatalln("Failed to load texture. Err: ", err)
-	}
-
-	blackTex, err := assets.LoadTexturePNG("./res/textures/black.png", &assets.TextureLoadOptions{})
-	if err != nil {
-		logging.ErrLog.Fatalln("Failed to load texture. Err: ", err)
-	}
-
 	containerDiffuseTex, err := assets.LoadTexturePNG("./res/textures/container-diffuse.png", &assets.TextureLoadOptions{})
 	if err != nil {
 		logging.ErrLog.Fatalln("Failed to load texture. Err: ", err)
@@ -505,7 +495,7 @@ func (g *Game) Init() {
 		logging.ErrLog.Fatalln("Failed to load texture. Err: ", err)
 	}
 
-	brickwallNormalTex, err := assets.LoadTexturePNG("./res/textures/brickwall-normal.png", &assets.TextureLoadOptions{})
+	brickwallNormalTex, err := assets.LoadTexturePNG("./res/textures/brickwall-normal.png", &assets.TextureLoadOptions{NoSrgba: true})
 	if err != nil {
 		logging.ErrLog.Fatalln("Failed to load texture. Err: ", err)
 	}
@@ -533,12 +523,8 @@ func (g *Game) Init() {
 	unlitMat.SetUnifInt32("material.diffuse", int32(materials.TextureSlot_Diffuse))
 
 	whiteMat = materials.NewMaterial("White mat", "./res/shaders/simple.glsl")
-	whiteMat.Settings.Set(materials.MaterialSettings_HasModelMtx | materials.MaterialSettings_HasNormalMtx)
+	whiteMat.Settings.Set(materials.MaterialSettings_HasModelMtx)
 	whiteMat.Shininess = 64
-	whiteMat.DiffuseTex = whiteTex.TexID
-	whiteMat.SpecularTex = blackTex.TexID
-	whiteMat.NormalTex = blackTex.TexID
-	whiteMat.EmissionTex = blackTex.TexID
 	whiteMat.SetUnifInt32("material.diffuse", int32(materials.TextureSlot_Diffuse))
 	whiteMat.SetUnifInt32("material.specular", int32(materials.TextureSlot_Specular))
 	whiteMat.SetUnifInt32("material.normal", int32(materials.TextureSlot_Normal))
@@ -553,12 +539,10 @@ func (g *Game) Init() {
 	whiteMat.SetUnifInt32("spotLightShadowMaps", int32(materials.TextureSlot_ShadowMap_Array1))
 
 	containerMat = materials.NewMaterial("Container mat", "./res/shaders/simple.glsl")
-	containerMat.Settings.Set(materials.MaterialSettings_HasModelMtx | materials.MaterialSettings_HasNormalMtx)
+	containerMat.Settings.Set(materials.MaterialSettings_HasModelMtx)
 	containerMat.Shininess = 64
 	containerMat.DiffuseTex = containerDiffuseTex.TexID
 	containerMat.SpecularTex = containerSpecularTex.TexID
-	containerMat.NormalTex = blackTex.TexID
-	containerMat.EmissionTex = blackTex.TexID
 	containerMat.SetUnifInt32("material.diffuse", int32(materials.TextureSlot_Diffuse))
 	containerMat.SetUnifInt32("material.specular", int32(materials.TextureSlot_Specular))
 	containerMat.SetUnifInt32("material.normal", int32(materials.TextureSlot_Normal))
@@ -573,12 +557,10 @@ func (g *Game) Init() {
 	containerMat.SetUnifInt32("spotLightShadowMaps", int32(materials.TextureSlot_ShadowMap_Array1))
 
 	groundMat = materials.NewMaterial("Ground mat", "./res/shaders/simple.glsl")
-	groundMat.Settings.Set(materials.MaterialSettings_HasModelMtx | materials.MaterialSettings_HasNormalMtx)
+	groundMat.Settings.Set(materials.MaterialSettings_HasModelMtx)
 	groundMat.Shininess = 64
 	groundMat.DiffuseTex = brickwallDiffuseTex.TexID
-	groundMat.SpecularTex = blackTex.TexID
 	groundMat.NormalTex = brickwallNormalTex.TexID
-	groundMat.EmissionTex = blackTex.TexID
 	groundMat.SetUnifInt32("material.diffuse", int32(materials.TextureSlot_Diffuse))
 	groundMat.SetUnifInt32("material.specular", int32(materials.TextureSlot_Specular))
 	groundMat.SetUnifInt32("material.normal", int32(materials.TextureSlot_Normal))
@@ -593,12 +575,9 @@ func (g *Game) Init() {
 	groundMat.SetUnifInt32("spotLightShadowMaps", int32(materials.TextureSlot_ShadowMap_Array1))
 
 	palleteMat = materials.NewMaterial("Pallete mat", "./res/shaders/simple.glsl")
-	palleteMat.Settings.Set(materials.MaterialSettings_HasModelMtx | materials.MaterialSettings_HasNormalMtx)
+	palleteMat.Settings.Set(materials.MaterialSettings_HasModelMtx)
 	palleteMat.Shininess = 64
 	palleteMat.DiffuseTex = palleteTex.TexID
-	palleteMat.SpecularTex = blackTex.TexID
-	palleteMat.NormalTex = blackTex.TexID
-	palleteMat.EmissionTex = blackTex.TexID
 	palleteMat.SetUnifInt32("material.diffuse", int32(materials.TextureSlot_Diffuse))
 	palleteMat.SetUnifInt32("material.specular", int32(materials.TextureSlot_Specular))
 	palleteMat.SetUnifInt32("material.normal", int32(materials.TextureSlot_Normal))

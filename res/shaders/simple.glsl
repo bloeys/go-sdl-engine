@@ -64,7 +64,6 @@ out vec4 fragPosSpotLight[NUM_SPOT_LIGHTS];
 
 out vec3 tangentCamPos;
 out vec3 tangentFragPos;
-out vec3 tangentVertNormal;
 out vec3 tangentDirLightDir;
 out vec3 tangentSpotLightPositions[NUM_SPOT_LIGHTS];
 out vec3 tangentSpotLightDirections[NUM_SPOT_LIGHTS];
@@ -85,8 +84,6 @@ void main()
 
     vec3 B = cross(N, T);
     mat3 tbnMtx = transpose(mat3(T, B, N));
-
-    tangentVertNormal = tbnMtx * normalMat * vertNormalIn;
 
     // Lighting related
     fragPos = modelVert.xyz;
@@ -136,7 +133,6 @@ in vec4 fragPosSpotLight[NUM_SPOT_LIGHTS];
 
 in vec3 tangentCamPos;
 in vec3 tangentFragPos;
-in vec3 tangentVertNormal;
 in vec3 tangentDirLightDir;
 in vec3 tangentSpotLightPositions[NUM_SPOT_LIGHTS];
 in vec3 tangentSpotLightDirections[NUM_SPOT_LIGHTS];
@@ -378,6 +374,8 @@ vec3 CalcSpotLight(SpotLight light, int lightIndex)
     return (finalDiffuse + finalSpecular) * intensity * (1 - shadow);
 }
 
+#define DRAW_NORMALS false
+
 void main()
 {
     // Shared values
@@ -389,12 +387,8 @@ void main()
     // Read normal data encoded [0,1]
     normalizedVertNorm = texture(material.normal, vertUV0).rgb;
 
-    // Handle no normal map
-    if (normalizedVertNorm == vec3(0))
-        normalizedVertNorm = normalize(tangentVertNormal);
-    else 
-        // Remap normal to [-1,1]
-        normalizedVertNorm = normalize(normalizedVertNorm * 2.0 - 1.0);
+    // Remap normal to [-1,1]
+    normalizedVertNorm = normalize(normalizedVertNorm * 2.0 - 1.0);
 
     // Light contributions
     vec3 finalColor = CalcDirLight();
@@ -413,4 +407,9 @@ void main()
     vec3 finalAmbient = ambientColor * diffuseTexColor.rgb;
 
     fragColor = vec4(finalColor + finalAmbient + finalEmission, 1);
+
+    if (DRAW_NORMALS)
+    {
+        fragColor = vec4(texture(material.normal, vertUV0).rgb, 1);
+    }
 }

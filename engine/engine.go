@@ -1,10 +1,13 @@
 package engine
 
 import (
+	"image"
+	"image/color"
 	"runtime"
 
 	imgui "github.com/AllenDang/cimgui-go"
 	"github.com/bloeys/nmage/assert"
+	"github.com/bloeys/nmage/assets"
 	"github.com/bloeys/nmage/input"
 	"github.com/bloeys/nmage/renderer"
 	"github.com/bloeys/nmage/timing"
@@ -202,6 +205,8 @@ func createWindow(title string, x, y, width, height int32, flags WindowFlags, re
 		return win, err
 	}
 
+	setupDefaultTextures()
+
 	// Get rid of the blinding white startup screen (unfortunately there is still one frame of white)
 	gl.Clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT | gl.STENCIL_BUFFER_BIT)
 	win.SDLWin.GLSwap()
@@ -227,6 +232,57 @@ func initOpenGL() error {
 	gl.BlendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA)
 
 	gl.ClearColor(0, 0, 0, 1)
+
+	return nil
+}
+
+func setupDefaultTextures() error {
+
+	// 1x1 black texture
+	defaultBlackImg := image.NewNRGBA(image.Rect(0, 0, 1, 1))
+	defaultBlackImg.Set(0, 0, color.NRGBA{R: 0, G: 0, B: 0, A: 1})
+	defaultBlackImgTex, err := assets.LoadTextureInMemPngImg(defaultBlackImg, &assets.TextureLoadOptions{NoSrgba: true})
+	if err != nil {
+		return err
+	}
+	assets.DefaultBlackTexId = defaultBlackImgTex
+
+	// 1x1 white texture
+	defaultWhiteImg := image.NewNRGBA(image.Rect(0, 0, 1, 1))
+	defaultWhiteImg.Set(0, 0, color.NRGBA{R: 255, G: 255, B: 255, A: 1})
+	defaultWhiteImgTex, err := assets.LoadTextureInMemPngImg(defaultWhiteImg, &assets.TextureLoadOptions{NoSrgba: true})
+	if err != nil {
+		return err
+	}
+	assets.DefaultWhiteTexId = defaultWhiteImgTex
+
+	// Default diffuse
+	assets.DefaultDiffuseTexId = defaultWhiteImgTex
+
+	// Default specular
+	assets.DefaultSpecularTexId = defaultBlackImgTex
+
+	// Default Normal map which is created to be RGB(0.5,0.5,1), which when multiplied by TBN matrix gives the vertex normal.
+	// 128 is better than 127 for normal maps. See 'Flat Color' section here: http://wiki.polycount.com/wiki/Normal_map
+	// Basically, 127 can create seams while 128 looks correct
+	defaultNormalMapImg := image.NewNRGBA(image.Rect(0, 0, 1, 1))
+	defaultNormalMapImg.Set(0, 0, color.NRGBA{R: 128, G: 128, B: 255, A: 1})
+	defaultNormalMapTex, err := assets.LoadTextureInMemPngImg(defaultNormalMapImg, &assets.TextureLoadOptions{NoSrgba: true})
+	if err != nil {
+		return err
+	}
+
+	assets.DefaultNormalTexId = defaultNormalMapTex
+
+	// Default emission
+	assets.DefaultEmissionTexId = defaultBlackImgTex
+
+	assert.T(assets.DefaultBlackTexId.TexID != 0, "The default black texture handle is zero. Either texture wasn't created or handle wasn't updated")
+	assert.T(assets.DefaultWhiteTexId.TexID != 0, "The default white texture handle is zero. Either texture wasn't created or handle wasn't updated")
+	assert.T(assets.DefaultDiffuseTexId.TexID != 0, "The default diffuse texture handle is zero. Either texture wasn't created or handle wasn't updated")
+	assert.T(assets.DefaultSpecularTexId.TexID != 0, "The default specular texture handle is zero. Either texture wasn't created or handle wasn't updated")
+	assert.T(assets.DefaultNormalTexId.TexID != 0, "The default normal texture handle is zero. Either texture wasn't created or handle wasn't updated")
+	assert.T(assets.DefaultEmissionTexId.TexID != 0, "The default emission texture handle is zero. Either texture wasn't created or handle wasn't updated")
 
 	return nil
 }
