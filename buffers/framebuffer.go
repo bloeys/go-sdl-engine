@@ -42,6 +42,7 @@ const (
 	FramebufferAttachmentDataFormat_Unknown FramebufferAttachmentDataFormat = iota
 	FramebufferAttachmentDataFormat_R32Int
 	FramebufferAttachmentDataFormat_RGBA8
+	FramebufferAttachmentDataFormat_RGBAF16
 	FramebufferAttachmentDataFormat_SRGBA
 	FramebufferAttachmentDataFormat_DepthF32
 	FramebufferAttachmentDataFormat_Depth24Stencil8
@@ -50,7 +51,8 @@ const (
 func (f FramebufferAttachmentDataFormat) IsColorFormat() bool {
 	return f == FramebufferAttachmentDataFormat_R32Int ||
 		f == FramebufferAttachmentDataFormat_RGBA8 ||
-		f == FramebufferAttachmentDataFormat_SRGBA
+		f == FramebufferAttachmentDataFormat_SRGBA ||
+		f == FramebufferAttachmentDataFormat_RGBAF16
 }
 
 func (f FramebufferAttachmentDataFormat) IsDepthFormat() bool {
@@ -65,6 +67,8 @@ func (f FramebufferAttachmentDataFormat) GlInternalFormat() int32 {
 		return gl.R32I
 	case FramebufferAttachmentDataFormat_RGBA8:
 		return gl.RGB8
+	case FramebufferAttachmentDataFormat_RGBAF16:
+		return gl.RGBA16F
 	case FramebufferAttachmentDataFormat_SRGBA:
 		return gl.SRGB_ALPHA
 	case FramebufferAttachmentDataFormat_DepthF32:
@@ -85,6 +89,8 @@ func (f FramebufferAttachmentDataFormat) GlFormat() uint32 {
 
 	case FramebufferAttachmentDataFormat_RGBA8:
 		fallthrough
+	case FramebufferAttachmentDataFormat_RGBAF16:
+		fallthrough
 	case FramebufferAttachmentDataFormat_SRGBA:
 		return gl.RGBA
 
@@ -93,6 +99,33 @@ func (f FramebufferAttachmentDataFormat) GlFormat() uint32 {
 
 	case FramebufferAttachmentDataFormat_Depth24Stencil8:
 		return gl.DEPTH_STENCIL
+
+	default:
+		logging.ErrLog.Fatalf("unknown framebuffer attachment data format. Format=%d\n", f)
+		return 0
+	}
+}
+
+func (f FramebufferAttachmentDataFormat) GlComponentType() uint32 {
+
+	switch f {
+
+	case FramebufferAttachmentDataFormat_R32Int:
+		return gl.INT
+
+	case FramebufferAttachmentDataFormat_RGBA8:
+		fallthrough
+	case FramebufferAttachmentDataFormat_SRGBA:
+		return gl.UNSIGNED_BYTE
+
+	case FramebufferAttachmentDataFormat_RGBAF16:
+		// Seems this is fine to be float instead of half float
+		fallthrough
+	case FramebufferAttachmentDataFormat_DepthF32:
+		return gl.FLOAT
+
+	case FramebufferAttachmentDataFormat_Depth24Stencil8:
+		return gl.UNSIGNED_INT_24_8
 
 	default:
 		logging.ErrLog.Fatalf("unknown framebuffer attachment data format. Format=%d\n", f)
@@ -124,7 +157,7 @@ func (fbo *Framebuffer) BindWithViewport() {
 	gl.Viewport(0, 0, int32(fbo.Width), int32(fbo.Height))
 }
 
-// Clear calls gl.Clear with the fob's clear flags.
+// Clear calls gl.Clear with the fbo's clear flags.
 // Note that the fbo must be complete and bound.
 // Calling this without a bound fbo will clear something else, like your screen.
 func (fbo *Framebuffer) Clear() {
@@ -207,7 +240,17 @@ func (fbo *Framebuffer) NewColorAttachment(
 		}
 
 		gl.BindTexture(gl.TEXTURE_2D, a.Id)
-		gl.TexImage2D(gl.TEXTURE_2D, 0, attachFormat.GlInternalFormat(), int32(fbo.Width), int32(fbo.Height), 0, attachFormat.GlFormat(), gl.UNSIGNED_BYTE, nil)
+		gl.TexImage2D(
+			gl.TEXTURE_2D,
+			0,
+			attachFormat.GlInternalFormat(),
+			int32(fbo.Width),
+			int32(fbo.Height),
+			0,
+			attachFormat.GlFormat(),
+			attachFormat.GlComponentType(),
+			nil,
+		)
 
 		gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR)
 		gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
@@ -298,7 +341,17 @@ func (fbo *Framebuffer) NewDepthAttachment(
 		}
 
 		gl.BindTexture(gl.TEXTURE_2D, a.Id)
-		gl.TexImage2D(gl.TEXTURE_2D, 0, attachFormat.GlInternalFormat(), int32(fbo.Width), int32(fbo.Height), 0, attachFormat.GlFormat(), gl.FLOAT, nil)
+		gl.TexImage2D(
+			gl.TEXTURE_2D,
+			0,
+			attachFormat.GlInternalFormat(),
+			int32(fbo.Width),
+			int32(fbo.Height),
+			0,
+			attachFormat.GlFormat(),
+			attachFormat.GlComponentType(),
+			nil,
+		)
 
 		gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST)
 		gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST)
@@ -341,7 +394,17 @@ func (fbo *Framebuffer) NewDepthAttachment(
 
 		gl.BindTexture(gl.TEXTURE_CUBE_MAP, a.Id)
 		for i := 0; i < 6; i++ {
-			gl.TexImage2D(uint32(gl.TEXTURE_CUBE_MAP_POSITIVE_X+i), 0, attachFormat.GlInternalFormat(), int32(fbo.Width), int32(fbo.Height), 0, attachFormat.GlFormat(), gl.FLOAT, nil)
+			gl.TexImage2D(
+				uint32(gl.TEXTURE_CUBE_MAP_POSITIVE_X+i),
+				0,
+				attachFormat.GlInternalFormat(),
+				int32(fbo.Width),
+				int32(fbo.Height),
+				0,
+				attachFormat.GlFormat(),
+				attachFormat.GlComponentType(),
+				nil,
+			)
 		}
 
 		gl.TexParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_MIN_FILTER, gl.NEAREST)
@@ -398,7 +461,7 @@ func (fbo *Framebuffer) NewDepthCubemapArrayAttachment(
 		6*numCubemaps,
 		0,
 		attachFormat.GlFormat(),
-		gl.FLOAT,
+		attachFormat.GlComponentType(),
 		nil,
 	)
 
@@ -455,7 +518,7 @@ func (fbo *Framebuffer) NewDepthTextureArrayAttachment(
 		numTextures,
 		0,
 		attachFormat.GlFormat(),
-		gl.FLOAT,
+		attachFormat.GlComponentType(),
 		nil,
 	)
 
@@ -513,7 +576,17 @@ func (fbo *Framebuffer) NewDepthStencilAttachment(
 		}
 
 		gl.BindTexture(gl.TEXTURE_2D, a.Id)
-		gl.TexImage2D(gl.TEXTURE_2D, 0, attachFormat.GlInternalFormat(), int32(fbo.Width), int32(fbo.Height), 0, attachFormat.GlFormat(), gl.UNSIGNED_INT_24_8, nil)
+		gl.TexImage2D(
+			gl.TEXTURE_2D,
+			0,
+			attachFormat.GlInternalFormat(),
+			int32(fbo.Width),
+			int32(fbo.Height),
+			0,
+			attachFormat.GlFormat(),
+			attachFormat.GlComponentType(),
+			nil,
+		)
 
 		gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST)
 		gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST)

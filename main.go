@@ -36,9 +36,10 @@ import (
 		- Point light shadows ✅
 		- Spotlight shadows ✅
 		- Create VAO struct independent from VBO to support multi-VBO use cases (e.g. instancing) ✅
-		- Normals maps
+		- Normals maps ✅
+		- HDR ✅
+		- Fix bad point light acne
 		- UBO support
-		- HDR
 		- Cascaded shadow mapping
 		- Skeletal animations
 	- In some cases we DO want input even when captured by UI. We need two systems within input package, one filtered and one not✅
@@ -202,12 +203,13 @@ var (
 	yaw   float32 = -1.5
 	cam   camera.Camera
 
-	// Demo fbo
-	renderToDemoFbo    = false
 	renderToBackBuffer = true
-	demoFboScale       = gglm.NewVec2(0.25, 0.25)
-	demoFboOffset      = gglm.NewVec2(0.75, -0.75)
-	demoFbo            buffers.Framebuffer
+
+	// Demo fbo
+	renderToDemoFbo = false
+	demoFboScale    = gglm.NewVec2(0.25, 0.25)
+	demoFboOffset   = gglm.NewVec2(0.75, -0.75)
+	demoFbo         buffers.Framebuffer
 
 	// Dir light fbo
 	showDirLightDepthMapFbo   = false
@@ -220,6 +222,12 @@ var (
 
 	// Spot light fbo
 	spotLightDepthMapFbo buffers.Framebuffer
+
+	// Hdr Fbo
+	hdrRendering                    = true
+	hdrExposure             float32 = 1
+	tonemappedScreenQuadMat materials.Material
+	hdrFbo                  buffers.Framebuffer
 
 	screenQuadVao buffers.VertexArray
 	screenQuadMat materials.Material
@@ -243,7 +251,7 @@ var (
 	cubeModelMat = gglm.NewTrMatId()
 
 	renderSkybox      = true
-	renderDepthBuffer bool
+	renderDepthBuffer = false
 
 	skyboxCmap assets.Cubemap
 
@@ -518,6 +526,9 @@ func (g *Game) Init() {
 	screenQuadMat.SetUnifVec2("offset", &demoFboOffset)
 	screenQuadMat.SetUnifInt32("material.diffuse", int32(materials.TextureSlot_Diffuse))
 
+	tonemappedScreenQuadMat = materials.NewMaterial("Tonemapped Screen Quad Mat", "./res/shaders/tonemapped-screen-quad.glsl")
+	tonemappedScreenQuadMat.SetUnifInt32("material.diffuse", int32(materials.TextureSlot_Diffuse))
+
 	unlitMat = materials.NewMaterial("Unlit mat", "./res/shaders/simple-unlit.glsl")
 	unlitMat.Settings.Set(materials.MaterialSettings_HasModelMtx)
 	unlitMat.SetUnifInt32("material.diffuse", int32(materials.TextureSlot_Diffuse))
@@ -635,6 +646,8 @@ func (g *Game) Init() {
 
 func (g *Game) initFbos() {
 
+	// @TODO: Resize window sized fbos on window resize
+
 	// Demo fbo
 	demoFbo = buffers.NewFramebuffer(uint32(g.WinWidth), uint32(g.WinHeight))
 
@@ -679,6 +692,20 @@ func (g *Game) initFbos() {
 	)
 
 	assert.T(spotLightDepthMapFbo.IsComplete(), "Spot light depth map fbo is not complete after init")
+
+	// Hdr fbo
+	hdrFbo = buffers.NewFramebuffer(uint32(g.WinWidth), uint32(g.WinHeight))
+	hdrFbo.NewColorAttachment(
+		buffers.FramebufferAttachmentType_Texture,
+		buffers.FramebufferAttachmentDataFormat_RGBAF16,
+	)
+
+	hdrFbo.NewDepthStencilAttachment(
+		buffers.FramebufferAttachmentType_Renderbuffer,
+		buffers.FramebufferAttachmentDataFormat_Depth24Stencil8,
+	)
+
+	assert.T(hdrFbo.IsComplete(), "Hdr fbo is not complete after init")
 }
 
 func (g *Game) updateLights() {
@@ -815,6 +842,14 @@ func (g *Game) showDebugWindow() {
 	if imgui.DragFloat3("Cam Forward", &cam.Forward.Data) {
 		cam.Update()
 		updateAllProjViewMats(cam.ProjMat, cam.ViewMat)
+	}
+
+	imgui.Spacing()
+
+	imgui.Text("HDR")
+	imgui.Checkbox("Enable HDR", &hdrRendering)
+	if imgui.DragFloat("Exposure", &hdrExposure) {
+		tonemappedScreenQuadMat.SetUnifFloat32("exposure", hdrExposure)
 	}
 
 	imgui.Spacing()
@@ -1075,8 +1110,8 @@ func (g *Game) updateCameraPos() {
 }
 
 var (
-	renderDirLightShadows   = false
-	renderPointLightShadows = false
+	renderDirLightShadows   = true
+	renderPointLightShadows = true
 	renderSpotLightShadows  = true
 
 	rotatingCubeSpeedDeg1 float32 = 45
@@ -1114,17 +1149,19 @@ func (g *Game) Render() {
 
 		if renderDepthBuffer {
 			g.RenderScene(&debugDepthMat)
+		} else if hdrRendering {
+			g.renderHdrFbo()
 		} else {
+
 			g.RenderScene(nil)
+			if renderSkybox {
+				g.DrawSkybox()
+			}
 		}
 	}
 
-	if renderSkybox {
-		g.DrawSkybox()
-	}
-
 	if renderToDemoFbo {
-		g.renderDemoFob()
+		g.renderDemoFbo()
 	}
 }
 
@@ -1222,7 +1259,7 @@ func (g *Game) renderPointLightShadowmaps() {
 	pointLightDepthMapFbo.UnBindWithViewport(uint32(g.WinWidth), uint32(g.WinHeight))
 }
 
-func (g *Game) renderDemoFob() {
+func (g *Game) renderDemoFbo() {
 
 	demoFbo.Bind()
 	demoFbo.Clear()
@@ -1244,6 +1281,23 @@ func (g *Game) renderDemoFob() {
 	screenQuadMat.SetUnifVec2("scale", &demoFboScale)
 
 	window.Rend.DrawVertexArray(&screenQuadMat, &screenQuadVao, 0, 6)
+}
+
+func (g *Game) renderHdrFbo() {
+
+	hdrFbo.Bind()
+	hdrFbo.Clear()
+
+	g.RenderScene(nil)
+
+	if renderSkybox {
+		g.DrawSkybox()
+	}
+
+	hdrFbo.UnBind()
+
+	tonemappedScreenQuadMat.DiffuseTex = hdrFbo.Attachments[0].Id
+	window.Rend.DrawVertexArray(&tonemappedScreenQuadMat, &screenQuadVao, 0, 6)
 }
 
 func (g *Game) RenderScene(overrideMat *materials.Material) {
