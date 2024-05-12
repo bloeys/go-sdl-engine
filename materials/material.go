@@ -9,6 +9,13 @@ import (
 	"github.com/go-gl/gl/v4.1-core/gl"
 )
 
+// @TODO: Unfortunately some uniform gl functions allocate because Go can't prove that the
+// gl function doesn't keep a pointer to the vectors/matrices we pass in, leading to them
+// escaping to the heap.
+//
+// Perhaps later we move to our own gl functions that are more optimized? assuming such an optimization
+// is even possible.
+
 var (
 	lastMatId uint32
 )
