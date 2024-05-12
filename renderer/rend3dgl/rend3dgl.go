@@ -12,30 +12,30 @@ import (
 var _ renderer.Render = &Rend3DGL{}
 
 type Rend3DGL struct {
-	BoundVao  *buffers.VertexArray
-	BoundMesh *meshes.Mesh
-	BoundMat  *materials.Material
+	BoundVaoId     uint32
+	BoundMatId     uint32
+	BoundMeshVaoId uint32
 }
 
-func (r *Rend3DGL) DrawMesh(mesh *meshes.Mesh, modelMat *gglm.TrMat, mat *materials.Material) {
+func (r *Rend3DGL) DrawMesh(mesh meshes.Mesh, modelMat gglm.TrMat, mat materials.Material) {
 
-	if mesh != r.BoundMesh {
+	if mesh.Vao.Id != r.BoundMeshVaoId {
 		mesh.Vao.Bind()
-		r.BoundMesh = mesh
+		r.BoundMeshVaoId = mesh.Vao.Id
 	}
 
-	if mat != r.BoundMat {
+	if mat.Id != r.BoundMatId {
 		mat.Bind()
-		r.BoundMat = mat
+		r.BoundMatId = mat.Id
 	}
 
 	if mat.Settings.Has(materials.MaterialSettings_HasModelMtx) {
-		mat.SetUnifMat4("modelMat", &modelMat.Mat4)
+		mat.SetUnifMat4("modelMat", modelMat.Mat4)
 	}
 
 	if mat.Settings.Has(materials.MaterialSettings_HasNormalMtx) {
 		normalMat := modelMat.Clone().InvertAndTranspose().ToMat3()
-		mat.SetUnifMat3("normalMat", &normalMat)
+		mat.SetUnifMat3("normalMat", normalMat)
 	}
 
 	for i := 0; i < len(mesh.SubMeshes); i++ {
@@ -43,31 +43,31 @@ func (r *Rend3DGL) DrawMesh(mesh *meshes.Mesh, modelMat *gglm.TrMat, mat *materi
 	}
 }
 
-func (r *Rend3DGL) DrawVertexArray(mat *materials.Material, vao *buffers.VertexArray, firstElement int32, elementCount int32) {
+func (r *Rend3DGL) DrawVertexArray(mat materials.Material, vao buffers.VertexArray, firstElement int32, elementCount int32) {
 
-	if vao != r.BoundVao {
+	if vao.Id != r.BoundVaoId {
 		vao.Bind()
-		r.BoundVao = vao
+		r.BoundVaoId = vao.Id
 	}
 
-	if mat != r.BoundMat {
+	if mat.Id != r.BoundMatId {
 		mat.Bind()
-		r.BoundMat = mat
+		r.BoundMatId = mat.Id
 	}
 
 	gl.DrawArrays(gl.TRIANGLES, firstElement, elementCount)
 }
 
-func (r *Rend3DGL) DrawCubemap(mesh *meshes.Mesh, mat *materials.Material) {
+func (r *Rend3DGL) DrawCubemap(mesh meshes.Mesh, mat materials.Material) {
 
-	if mesh != r.BoundMesh {
+	if mesh.Vao.Id != r.BoundMeshVaoId {
 		mesh.Vao.Bind()
-		r.BoundMesh = mesh
+		r.BoundMeshVaoId = mesh.Vao.Id
 	}
 
-	if mat != r.BoundMat {
+	if mat.Id != r.BoundMatId {
 		mat.Bind()
-		r.BoundMat = mat
+		r.BoundMatId = mat.Id
 	}
 
 	for i := 0; i < len(mesh.SubMeshes); i++ {
@@ -76,8 +76,9 @@ func (r *Rend3DGL) DrawCubemap(mesh *meshes.Mesh, mat *materials.Material) {
 }
 
 func (r3d *Rend3DGL) FrameEnd() {
-	r3d.BoundMesh = nil
-	r3d.BoundMat = nil
+	r3d.BoundVaoId = 0
+	r3d.BoundMatId = 0
+	r3d.BoundMeshVaoId = 0
 }
 
 func NewRend3DGL() *Rend3DGL {

@@ -9,6 +9,10 @@ import (
 	"github.com/go-gl/gl/v4.1-core/gl"
 )
 
+var (
+	lastMatId uint32
+)
+
 type TextureSlot uint32
 
 const (
@@ -43,6 +47,7 @@ func (ms *MaterialSettings) Has(flags MaterialSettings) bool {
 }
 
 type Material struct {
+	Id         uint32
 	Name       string
 	ShaderProg shaders.ShaderProgram
 	Settings   MaterialSettings
@@ -153,32 +158,37 @@ func (m *Material) SetUnifFloat32(uniformName string, val float32) {
 	gl.ProgramUniform1f(m.ShaderProg.Id, m.GetUnifLoc(uniformName), val)
 }
 
-func (m *Material) SetUnifVec2(uniformName string, vec2 *gglm.Vec2) {
+func (m *Material) SetUnifVec2(uniformName string, vec2 gglm.Vec2) {
 	gl.ProgramUniform2fv(m.ShaderProg.Id, m.GetUnifLoc(uniformName), 1, &vec2.Data[0])
 }
 
-func (m *Material) SetUnifVec3(uniformName string, vec3 *gglm.Vec3) {
+func (m *Material) SetUnifVec3(uniformName string, vec3 gglm.Vec3) {
 	gl.ProgramUniform3fv(m.ShaderProg.Id, m.GetUnifLoc(uniformName), 1, &vec3.Data[0])
 }
 
-func (m *Material) SetUnifVec4(uniformName string, vec4 *gglm.Vec4) {
+func (m *Material) SetUnifVec4(uniformName string, vec4 gglm.Vec4) {
 	gl.ProgramUniform4fv(m.ShaderProg.Id, m.GetUnifLoc(uniformName), 1, &vec4.Data[0])
 }
 
-func (m *Material) SetUnifMat2(uniformName string, mat2 *gglm.Mat2) {
+func (m *Material) SetUnifMat2(uniformName string, mat2 gglm.Mat2) {
 	gl.ProgramUniformMatrix2fv(m.ShaderProg.Id, m.GetUnifLoc(uniformName), 1, false, &mat2.Data[0][0])
 }
 
-func (m *Material) SetUnifMat3(uniformName string, mat3 *gglm.Mat3) {
+func (m *Material) SetUnifMat3(uniformName string, mat3 gglm.Mat3) {
 	gl.ProgramUniformMatrix3fv(m.ShaderProg.Id, m.GetUnifLoc(uniformName), 1, false, &mat3.Data[0][0])
 }
 
-func (m *Material) SetUnifMat4(uniformName string, mat4 *gglm.Mat4) {
+func (m *Material) SetUnifMat4(uniformName string, mat4 gglm.Mat4) {
 	gl.ProgramUniformMatrix4fv(m.ShaderProg.Id, m.GetUnifLoc(uniformName), 1, false, &mat4.Data[0][0])
 }
 
 func (m *Material) Delete() {
 	gl.DeleteProgram(m.ShaderProg.Id)
+}
+
+func getNewMatId() uint32 {
+	lastMatId++
+	return lastMatId
 }
 
 func NewMaterial(matName, shaderPath string) Material {
@@ -189,6 +199,7 @@ func NewMaterial(matName, shaderPath string) Material {
 	}
 
 	return Material{
+		Id:         getNewMatId(),
 		Name:       matName,
 		ShaderProg: shdrProg,
 		UnifLocs:   make(map[string]int32),
@@ -209,6 +220,7 @@ func NewMaterialSrc(matName string, shaderSrc []byte) Material {
 	}
 
 	return Material{
+		Id:         getNewMatId(),
 		Name:       matName,
 		ShaderProg: shdrProg,
 		UnifLocs:   make(map[string]int32),
