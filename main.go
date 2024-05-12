@@ -371,6 +371,7 @@ func main() {
 		}
 	}
 
+	window.SDLWin.SetTitle("nMage")
 	engine.Run(game, &window, game.ImGUIInfo)
 
 	if PROFILE_CPU {
@@ -424,13 +425,13 @@ func getDpiScaling(unscaledWindowWidth, unscaledWindowHeight int32) float32 {
 	_, dpiHorizontal, _, err := sdl.GetDisplayDPI(0)
 	if err != nil {
 		dpiHorizontal = defaultDpi
-		fmt.Printf("Failed to get DPI with error '%s'. Using default DPI of '%f'\n", err.Error(), defaultDpi)
+		logging.ErrLog.Printf("Failed to get DPI with error '%s'. Using default DPI of '%f'\n", err.Error(), defaultDpi)
 	}
 
 	// Scaling factor (e.g. will be 1.25 for 125% scaling on windows)
 	dpiScaling := dpiHorizontal / defaultDpi
 
-	fmt.Printf(
+	logging.InfoLog.Printf(
 		"Default DPI=%f\nHorizontal DPI=%f\nDPI scaling=%f\nUnscaled window size (width, height)=(%d, %d)\nScaled window size (width, height)=(%d, %d)\n\n",
 		defaultDpi,
 		dpiHorizontal,
@@ -821,10 +822,8 @@ func (g *Game) Update() {
 	g.showDebugWindow()
 
 	if input.KeyClicked(sdl.K_F4) {
-		fmt.Printf("Pos: %s; Forward: %s; |Forward|: %f\n", cam.Pos.String(), cam.Forward.String(), cam.Forward.Mag())
+		logging.InfoLog.Printf("Pos: %s; Forward: %s; |Forward|: %f\n", cam.Pos.String(), cam.Forward.String(), cam.Forward.Mag())
 	}
-
-	g.Win.SDLWin.SetTitle(fmt.Sprint("nMage (", timing.GetAvgFPS(), " fps)"))
 }
 
 func (g *Game) showDebugWindow() {
@@ -832,6 +831,12 @@ func (g *Game) showDebugWindow() {
 	imgui.ShowDemoWindow()
 
 	imgui.Begin("Debug controls")
+
+	imgui.PushStyleColorVec4(imgui.ColText, imgui.NewColor(1, 1, 0, 1).Value)
+	imgui.LabelText("FPS", fmt.Sprint(timing.GetAvgFPS()))
+	imgui.PopStyleColor()
+
+	imgui.Spacing()
 
 	// Camera
 	imgui.Text("Camera")
