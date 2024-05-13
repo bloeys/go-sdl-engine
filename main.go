@@ -194,9 +194,14 @@ const (
 	unscaledWindowHeight = 720
 
 	PROFILE_CPU = true
+
+	frameTimesMsSamples = 10000
 )
 
 var (
+	frameTimesMsIndex int       = 0
+	frameTimesMs      []float32 = make([]float32, 0, frameTimesMsSamples)
+
 	window engine.Window
 
 	pitch float32 = 0
@@ -837,6 +842,19 @@ func (g *Game) showDebugWindow() {
 	imgui.PushStyleColorVec4(imgui.ColText, imgui.NewColor(1, 1, 0, 1).Value)
 	imgui.LabelText("FPS", fmt.Sprint(timing.GetAvgFPS()))
 	imgui.PopStyleColor()
+
+	if len(frameTimesMs) < frameTimesMsSamples {
+		frameTimesMs = append(frameTimesMs, timing.DT()*1000)
+	} else {
+		frameTimesMs[frameTimesMsIndex] = timing.DT() * 1000
+
+		frameTimesMsIndex++
+		if frameTimesMsIndex >= len(frameTimesMs) {
+			frameTimesMsIndex = 0
+		}
+	}
+
+	imgui.PlotLinesFloatPtrV("Frame Times", frameTimesMs, int32(len(frameTimesMs)), 0, "", 0, 16, imgui.Vec2{Y: 200}, 4)
 
 	imgui.Spacing()
 
