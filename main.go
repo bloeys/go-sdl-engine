@@ -187,20 +187,21 @@ func (s *SpotLight) OuterCutoffCos() float32 {
 }
 
 const (
-	camSpeed         = 15
-	mouseSensitivity = 0.5
-
-	unscaledWindowWidth  = 1280
-	unscaledWindowHeight = 720
+	UNSCALED_WINDOW_WIDTH  = 1280
+	UNSCALED_WINDOW_HEIGHT = 720
 
 	PROFILE_CPU = true
+	PROFILE_MEM = true
 
-	frameTimesMsSamples = 10000
+	FRAME_TIME_MS_SAMPLES = 10000
 )
 
 var (
 	frameTimesMsIndex int       = 0
-	frameTimesMs      []float32 = make([]float32, 0, frameTimesMsSamples)
+	frameTimesMs      []float32 = make([]float32, 0, FRAME_TIME_MS_SAMPLES)
+
+	camSpeed         float32 = 15
+	mouseSensitivity float32 = 0.5
 
 	window engine.Window
 
@@ -347,8 +348,8 @@ func main() {
 	}
 
 	//Create window
-	dpiScaling = getDpiScaling(unscaledWindowWidth, unscaledWindowHeight)
-	window, err = engine.CreateOpenGLWindowCentered("nMage", int32(unscaledWindowWidth*dpiScaling), int32(unscaledWindowHeight*dpiScaling), engine.WindowFlags_RESIZABLE)
+	dpiScaling = getDpiScaling(UNSCALED_WINDOW_WIDTH, UNSCALED_WINDOW_HEIGHT)
+	window, err = engine.CreateOpenGLWindowCentered("nMage", int32(UNSCALED_WINDOW_WIDTH*dpiScaling), int32(UNSCALED_WINDOW_HEIGHT*dpiScaling), engine.WindowFlags_RESIZABLE)
 	if err != nil {
 		logging.ErrLog.Fatalln("Failed to create window. Err: ", err)
 	}
@@ -360,8 +361,8 @@ func main() {
 
 	game := &Game{
 		Win:       &window,
-		WinWidth:  int32(unscaledWindowWidth * dpiScaling),
-		WinHeight: int32(unscaledWindowHeight * dpiScaling),
+		WinWidth:  int32(UNSCALED_WINDOW_WIDTH * dpiScaling),
+		WinHeight: int32(UNSCALED_WINDOW_HEIGHT * dpiScaling),
 		Rend:      rend3dgl.NewRend3DGL(),
 		ImGUIInfo: nmageimgui.NewImGui("./res/shaders/imgui.glsl"),
 	}
@@ -383,6 +384,9 @@ func main() {
 
 	if PROFILE_CPU {
 		pprof.StopCPUProfile()
+	}
+
+	if PROFILE_MEM {
 
 		heapProfile, err := os.Create("heap.pprof")
 		if err == nil {
@@ -843,7 +847,7 @@ func (g *Game) showDebugWindow() {
 	imgui.LabelText("FPS", fmt.Sprint(timing.GetAvgFPS()))
 	imgui.PopStyleColor()
 
-	if len(frameTimesMs) < frameTimesMsSamples {
+	if len(frameTimesMs) < FRAME_TIME_MS_SAMPLES {
 		frameTimesMs = append(frameTimesMs, timing.DT()*1000)
 	} else {
 		frameTimesMs[frameTimesMsIndex] = timing.DT() * 1000
