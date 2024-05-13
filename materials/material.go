@@ -191,48 +191,48 @@ func SetUnifVec3(shaderProgId uint32, unifLoc int32, vec3 *gglm.Vec3) {
 }
 
 func (m *Material) SetUnifVec4(uniformName string, vec4 *gglm.Vec4) {
-	setUnifVec4(m.ShaderProg.Id, m.GetUnifLoc(uniformName), vec4)
+	internalSetUnifVec4(m.ShaderProg.Id, m.GetUnifLoc(uniformName), vec4)
 }
 
 //go:noescape
-//go:linkname setUnifVec4 github.com/bloeys/nmage/materials.SetUnifVec4
-func setUnifVec4(shaderProgId uint32, unifLoc int32, vec4 *gglm.Vec4)
+//go:linkname internalSetUnifVec4 github.com/bloeys/nmage/materials.SetUnifVec4
+func internalSetUnifVec4(shaderProgId uint32, unifLoc int32, vec4 *gglm.Vec4)
 
 func SetUnifVec4(shaderProgId uint32, unifLoc int32, vec4 *gglm.Vec4) {
 	gl.ProgramUniform4fv(shaderProgId, unifLoc, 1, &vec4.Data[0])
 }
 
 func (m *Material) SetUnifMat2(uniformName string, mat2 *gglm.Mat2) {
-	setUnifMat2(m.ShaderProg.Id, m.GetUnifLoc(uniformName), mat2)
+	internalSetUnifMat2(m.ShaderProg.Id, m.GetUnifLoc(uniformName), mat2)
 }
 
 //go:noescape
-//go:linkname setUnifMat2 github.com/bloeys/nmage/materials.SetUnifMat2
-func setUnifMat2(shaderProgId uint32, unifLoc int32, mat2 *gglm.Mat2)
+//go:linkname internalSetUnifMat2 github.com/bloeys/nmage/materials.SetUnifMat2
+func internalSetUnifMat2(shaderProgId uint32, unifLoc int32, mat2 *gglm.Mat2)
 
 func SetUnifMat2(shaderProgId uint32, unifLoc int32, mat2 *gglm.Mat2) {
 	gl.ProgramUniformMatrix2fv(shaderProgId, unifLoc, 1, false, &mat2.Data[0][0])
 }
 
 func (m *Material) SetUnifMat3(uniformName string, mat3 *gglm.Mat3) {
-	setUnifMat3(m.ShaderProg.Id, m.GetUnifLoc(uniformName), mat3)
+	internalSetUnifMat3(m.ShaderProg.Id, m.GetUnifLoc(uniformName), mat3)
 }
 
 //go:noescape
-//go:linkname setUnifMat3 github.com/bloeys/nmage/materials.SetUnifMat3
-func setUnifMat3(shaderProgId uint32, unifLoc int32, mat3 *gglm.Mat3)
+//go:linkname internalSetUnifMat3 github.com/bloeys/nmage/materials.SetUnifMat3
+func internalSetUnifMat3(shaderProgId uint32, unifLoc int32, mat3 *gglm.Mat3)
 
 func SetUnifMat3(shaderProgId uint32, unifLoc int32, mat3 *gglm.Mat3) {
 	gl.ProgramUniformMatrix3fv(shaderProgId, unifLoc, 1, false, &mat3.Data[0][0])
 }
 
 func (m *Material) SetUnifMat4(uniformName string, mat4 *gglm.Mat4) {
-	setUnifMat4(m.ShaderProg.Id, m.GetUnifLoc(uniformName), mat4)
+	internalSetUnifMat4(m.ShaderProg.Id, m.GetUnifLoc(uniformName), mat4)
 }
 
 //go:noescape
-//go:linkname setUnifMat4 github.com/bloeys/nmage/materials.SetUnifMat4
-func setUnifMat4(shaderProgId uint32, unifLoc int32, mat4 *gglm.Mat4)
+//go:linkname internalSetUnifMat4 github.com/bloeys/nmage/materials.SetUnifMat4
+func internalSetUnifMat4(shaderProgId uint32, unifLoc int32, mat4 *gglm.Mat4)
 
 func SetUnifMat4(shaderProgId uint32, unifLoc int32, mat4 *gglm.Mat4) {
 	gl.ProgramUniformMatrix4fv(shaderProgId, unifLoc, 1, false, &mat4.Data[0][0])
