@@ -70,7 +70,7 @@ func (i *ImguiInfo) Render(winWidth, winHeight float32, fbWidth, fbHeight int32)
 
 	// @PERF: only update the ortho matrix on window resize
 	orthoMat := gglm.Ortho(0, float32(winWidth), 0, float32(winHeight), 0, 20)
-	i.Mat.SetUnifMat4("ProjMtx", orthoMat.Mat4)
+	i.Mat.SetUnifMat4("ProjMtx", &orthoMat.Mat4)
 	gl.BindSampler(0, 0) // Rely on combined texture/sampler state.
 
 	// Recreate the VAO every time

@@ -1,6 +1,8 @@
 package materials
 
 import (
+	_ "unsafe"
+
 	"github.com/bloeys/gglm/gglm"
 	"github.com/bloeys/nmage/assert"
 	"github.com/bloeys/nmage/assets"
@@ -9,12 +11,11 @@ import (
 	"github.com/go-gl/gl/v4.1-core/gl"
 )
 
-// @TODO: Unfortunately some uniform gl functions allocate because Go can't prove that the
-// gl function doesn't keep a pointer to the vectors/matrices we pass in, leading to them
-// escaping to the heap.
+// @TODO: This noescape magic is to avoid heap allocations done when
+// passing vectors or matrices into cgo via set uniform calls.
 //
-// Perhaps later we move to our own gl functions that are more optimized? assuming such an optimization
-// is even possible.
+// But I would rather this kind of stuff is done on the gl wrapper level.
+// Should we wrap the OpenGL APIs we use ourself?
 
 var (
 	lastMatId uint32
@@ -165,28 +166,76 @@ func (m *Material) SetUnifFloat32(uniformName string, val float32) {
 	gl.ProgramUniform1f(m.ShaderProg.Id, m.GetUnifLoc(uniformName), val)
 }
 
-func (m *Material) SetUnifVec2(uniformName string, vec2 gglm.Vec2) {
-	gl.ProgramUniform2fv(m.ShaderProg.Id, m.GetUnifLoc(uniformName), 1, &vec2.Data[0])
+func (m *Material) SetUnifVec2(uniformName string, vec2 *gglm.Vec2) {
+	internalSetUnifVec2(m.ShaderProg.Id, m.GetUnifLoc(uniformName), vec2)
 }
 
-func (m *Material) SetUnifVec3(uniformName string, vec3 gglm.Vec3) {
-	gl.ProgramUniform3fv(m.ShaderProg.Id, m.GetUnifLoc(uniformName), 1, &vec3.Data[0])
+//go:noescape
+//go:linkname internalSetUnifVec2 github.com/bloeys/nmage/materials.SetUnifVec2
+func internalSetUnifVec2(shaderProgId uint32, unifLoc int32, vec2 *gglm.Vec2)
+
+func SetUnifVec2(shaderProgId uint32, unifLoc int32, vec2 *gglm.Vec2) {
+	gl.ProgramUniform2fv(shaderProgId, unifLoc, 1, &vec2.Data[0])
 }
 
-func (m *Material) SetUnifVec4(uniformName string, vec4 gglm.Vec4) {
-	gl.ProgramUniform4fv(m.ShaderProg.Id, m.GetUnifLoc(uniformName), 1, &vec4.Data[0])
+func (m *Material) SetUnifVec3(uniformName string, vec3 *gglm.Vec3) {
+	internalSetUnifVec3(m.ShaderProg.Id, m.GetUnifLoc(uniformName), vec3)
 }
 
-func (m *Material) SetUnifMat2(uniformName string, mat2 gglm.Mat2) {
-	gl.ProgramUniformMatrix2fv(m.ShaderProg.Id, m.GetUnifLoc(uniformName), 1, false, &mat2.Data[0][0])
+//go:noescape
+//go:linkname internalSetUnifVec3 github.com/bloeys/nmage/materials.SetUnifVec3
+func internalSetUnifVec3(shaderProgId uint32, unifLoc int32, vec3 *gglm.Vec3)
+
+func SetUnifVec3(shaderProgId uint32, unifLoc int32, vec3 *gglm.Vec3) {
+	gl.ProgramUniform3fv(shaderProgId, unifLoc, 1, &vec3.Data[0])
 }
 
-func (m *Material) SetUnifMat3(uniformName string, mat3 gglm.Mat3) {
-	gl.ProgramUniformMatrix3fv(m.ShaderProg.Id, m.GetUnifLoc(uniformName), 1, false, &mat3.Data[0][0])
+func (m *Material) SetUnifVec4(uniformName string, vec4 *gglm.Vec4) {
+	setUnifVec4(m.ShaderProg.Id, m.GetUnifLoc(uniformName), vec4)
 }
 
-func (m *Material) SetUnifMat4(uniformName string, mat4 gglm.Mat4) {
-	gl.ProgramUniformMatrix4fv(m.ShaderProg.Id, m.GetUnifLoc(uniformName), 1, false, &mat4.Data[0][0])
+//go:noescape
+//go:linkname setUnifVec4 github.com/bloeys/nmage/materials.SetUnifVec4
+func setUnifVec4(shaderProgId uint32, unifLoc int32, vec4 *gglm.Vec4)
+
+func SetUnifVec4(shaderProgId uint32, unifLoc int32, vec4 *gglm.Vec4) {
+	gl.ProgramUniform4fv(shaderProgId, unifLoc, 1, &vec4.Data[0])
+}
+
+func (m *Material) SetUnifMat2(uniformName string, mat2 *gglm.Mat2) {
+	setUnifMat2(m.ShaderProg.Id, m.GetUnifLoc(uniformName), mat2)
+}
+
+//go:noescape
+//go:linkname setUnifMat2 github.com/bloeys/nmage/materials.SetUnifMat2
+func setUnifMat2(shaderProgId uint32, unifLoc int32, mat2 *gglm.Mat2)
+
+func SetUnifMat2(shaderProgId uint32, unifLoc int32, mat2 *gglm.Mat2) {
+	gl.ProgramUniformMatrix2fv(shaderProgId, unifLoc, 1, false, &mat2.Data[0][0])
+}
+
+func (m *Material) SetUnifMat3(uniformName string, mat3 *gglm.Mat3) {
+	setUnifMat3(m.ShaderProg.Id, m.GetUnifLoc(uniformName), mat3)
+}
+
+//go:noescape
+//go:linkname setUnifMat3 github.com/bloeys/nmage/materials.SetUnifMat3
+func setUnifMat3(shaderProgId uint32, unifLoc int32, mat3 *gglm.Mat3)
+
+func SetUnifMat3(shaderProgId uint32, unifLoc int32, mat3 *gglm.Mat3) {
+	gl.ProgramUniformMatrix3fv(shaderProgId, unifLoc, 1, false, &mat3.Data[0][0])
+}
+
+func (m *Material) SetUnifMat4(uniformName string, mat4 *gglm.Mat4) {
+	setUnifMat4(m.ShaderProg.Id, m.GetUnifLoc(uniformName), mat4)
+}
+
+//go:noescape
+//go:linkname setUnifMat4 github.com/bloeys/nmage/materials.SetUnifMat4
+func setUnifMat4(shaderProgId uint32, unifLoc int32, mat4 *gglm.Mat4)
+
+func SetUnifMat4(shaderProgId uint32, unifLoc int32, mat4 *gglm.Mat4) {
+	gl.ProgramUniformMatrix4fv(shaderProgId, unifLoc, 1, false, &mat4.Data[0][0])
 }
 
 func (m *Material) Delete() {

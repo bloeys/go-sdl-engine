@@ -30,12 +30,12 @@ func (r *Rend3DGL) DrawMesh(mesh meshes.Mesh, modelMat gglm.TrMat, mat materials
 	}
 
 	if mat.Settings.Has(materials.MaterialSettings_HasModelMtx) {
-		mat.SetUnifMat4("modelMat", modelMat.Mat4)
+		mat.SetUnifMat4("modelMat", &modelMat.Mat4)
 	}
 
 	if mat.Settings.Has(materials.MaterialSettings_HasNormalMtx) {
 		normalMat := modelMat.Clone().InvertAndTranspose().ToMat3()
-		mat.SetUnifMat3("normalMat", normalMat)
+		mat.SetUnifMat3("normalMat", &normalMat)
 	}
 
 	for i := 0; i < len(mesh.SubMeshes); i++ {
