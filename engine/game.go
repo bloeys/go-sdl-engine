@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"github.com/bloeys/nmage/renderer"
 	"github.com/bloeys/nmage/timing"
 	nmageimgui "github.com/bloeys/nmage/ui/imgui"
 	"github.com/go-gl/gl/v4.1-core/gl"
@@ -20,7 +21,7 @@ type Game interface {
 	DeInit()
 }
 
-func Run(g Game, w *Window, ui nmageimgui.ImguiInfo) {
+func Run(g Game, w *Window, rend renderer.Render, ui nmageimgui.ImguiInfo) {
 
 	isRunning = true
 
@@ -56,7 +57,7 @@ func Run(g Game, w *Window, ui nmageimgui.ImguiInfo) {
 		w.SDLWin.GLSwap()
 
 		g.FrameEnd()
-		w.Rend.FrameEnd()
+		rend.FrameEnd()
 		timing.FrameEnded()
 	}
 

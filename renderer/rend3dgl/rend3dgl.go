@@ -17,7 +17,7 @@ type Rend3DGL struct {
 	BoundMeshVaoId uint32
 }
 
-func (r *Rend3DGL) DrawMesh(mesh meshes.Mesh, modelMat gglm.TrMat, mat materials.Material) {
+func (r *Rend3DGL) DrawMesh(mesh *meshes.Mesh, modelMat *gglm.TrMat, mat *materials.Material) {
 
 	if mesh.Vao.Id != r.BoundMeshVaoId {
 		mesh.Vao.Bind()
@@ -43,7 +43,7 @@ func (r *Rend3DGL) DrawMesh(mesh meshes.Mesh, modelMat gglm.TrMat, mat materials
 	}
 }
 
-func (r *Rend3DGL) DrawVertexArray(mat materials.Material, vao buffers.VertexArray, firstElement int32, elementCount int32) {
+func (r *Rend3DGL) DrawVertexArray(mat *materials.Material, vao *buffers.VertexArray, firstElement int32, elementCount int32) {
 
 	if vao.Id != r.BoundVaoId {
 		vao.Bind()
@@ -58,7 +58,7 @@ func (r *Rend3DGL) DrawVertexArray(mat materials.Material, vao buffers.VertexArr
 	gl.DrawArrays(gl.TRIANGLES, firstElement, elementCount)
 }
 
-func (r *Rend3DGL) DrawCubemap(mesh meshes.Mesh, mat materials.Material) {
+func (r *Rend3DGL) DrawCubemap(mesh *meshes.Mesh, mat *materials.Material) {
 
 	if mesh.Vao.Id != r.BoundMeshVaoId {
 		mesh.Vao.Bind()

@@ -329,6 +329,7 @@ type Game struct {
 	WinWidth  int32
 	WinHeight int32
 	Win       *engine.Window
+	Rend      *rend3dgl.Rend3DGL
 	ImGUIInfo nmageimgui.ImguiInfo
 }
 
@@ -342,7 +343,7 @@ func main() {
 
 	//Create window
 	dpiScaling = getDpiScaling(unscaledWindowWidth, unscaledWindowHeight)
-	window, err = engine.CreateOpenGLWindowCentered("nMage", int32(unscaledWindowWidth*dpiScaling), int32(unscaledWindowHeight*dpiScaling), engine.WindowFlags_RESIZABLE, rend3dgl.NewRend3DGL())
+	window, err = engine.CreateOpenGLWindowCentered("nMage", int32(unscaledWindowWidth*dpiScaling), int32(unscaledWindowHeight*dpiScaling), engine.WindowFlags_RESIZABLE)
 	if err != nil {
 		logging.ErrLog.Fatalln("Failed to create window. Err: ", err)
 	}
@@ -356,6 +357,7 @@ func main() {
 		Win:       &window,
 		WinWidth:  int32(unscaledWindowWidth * dpiScaling),
 		WinHeight: int32(unscaledWindowHeight * dpiScaling),
+		Rend:      rend3dgl.NewRend3DGL(),
 		ImGUIInfo: nmageimgui.NewImGui("./res/shaders/imgui.glsl"),
 	}
 	window.EventCallbacks = append(window.EventCallbacks, game.handleWindowEvents)
@@ -372,7 +374,7 @@ func main() {
 	}
 
 	window.SDLWin.SetTitle("nMage")
-	engine.Run(game, &window, game.ImGUIInfo)
+	engine.Run(game, &window, game.Rend, game.ImGUIInfo)
 
 	if PROFILE_CPU {
 		pprof.StopCPUProfile()
@@ -1202,7 +1204,7 @@ func (g *Game) renderDirectionalLightShadowmap() {
 		screenQuadMat.SetUnifVec2("offset", &dirLightDepthMapFboOffset)
 		screenQuadMat.SetUnifVec2("scale", &dirLightDepthMapFboScale)
 		screenQuadMat.Bind()
-		window.Rend.DrawVertexArray(screenQuadMat, screenQuadVao, 0, 6)
+		g.Rend.DrawVertexArray(&screenQuadMat, &screenQuadVao, 0, 6)
 	}
 }
 
@@ -1285,7 +1287,7 @@ func (g *Game) renderDemoFbo() {
 	screenQuadMat.SetUnifVec2("offset", &demoFboOffset)
 	screenQuadMat.SetUnifVec2("scale", &demoFboScale)
 
-	window.Rend.DrawVertexArray(screenQuadMat, screenQuadVao, 0, 6)
+	g.Rend.DrawVertexArray(&screenQuadMat, &screenQuadVao, 0, 6)
 }
 
 func (g *Game) renderHdrFbo() {
@@ -1302,7 +1304,7 @@ func (g *Game) renderHdrFbo() {
 	hdrFbo.UnBind()
 
 	tonemappedScreenQuadMat.DiffuseTex = hdrFbo.Attachments[0].Id
-	window.Rend.DrawVertexArray(tonemappedScreenQuadMat, screenQuadVao, 0, 6)
+	g.Rend.DrawVertexArray(&tonemappedScreenQuadMat, &screenQuadVao, 0, 6)
 }
 
 func (g *Game) RenderScene(overrideMat *materials.Material) {
@@ -1324,41 +1326,41 @@ func (g *Game) RenderScene(overrideMat *materials.Material) {
 
 	// Draw dir light
 	dirLightTrMat := gglm.NewTrMatId()
-	window.Rend.DrawMesh(sphereMesh, *dirLightTrMat.Translate(0, 10, 0).Scale(0.1, 0.1, 0.1), sunMat)
+	g.Rend.DrawMesh(&sphereMesh, dirLightTrMat.Translate(0, 10, 0).Scale(0.1, 0.1, 0.1), &sunMat)
 
 	// Draw point lights
 	for i := 0; i < len(pointLights); i++ {
 
 		pl := &pointLights[i]
 		plTrMat := gglm.NewTrMatId()
-		window.Rend.DrawMesh(cubeMesh, *plTrMat.TranslateVec(&pl.Pos).Scale(0.1, 0.1, 0.1), sunMat)
+		g.Rend.DrawMesh(&cubeMesh, plTrMat.TranslateVec(&pl.Pos).Scale(0.1, 0.1, 0.1), &sunMat)
 	}
 
 	// Chair
-	window.Rend.DrawMesh(chairMesh, tempModelMatrix, chairMat)
+	g.Rend.DrawMesh(&chairMesh, &tempModelMatrix, &chairMat)
 
 	// Ground
 	groundTrMat := gglm.NewTrMatId()
-	window.Rend.DrawMesh(cubeMesh, *groundTrMat.Translate(0, -3, 0).Scale(20, 1, 20), groundMat)
+	g.Rend.DrawMesh(&cubeMesh, groundTrMat.Translate(0, -3, 0).Scale(20, 1, 20), &groundMat)
 
 	// Cubes
 	tempModelMatrix.Translate(-6, 0, 0)
-	window.Rend.DrawMesh(cubeMesh, tempModelMatrix, cubeMat)
+	g.Rend.DrawMesh(&cubeMesh, &tempModelMatrix, &cubeMat)
 
 	tempModelMatrix.Translate(0, -1, -4)
-	window.Rend.DrawMesh(cubeMesh, tempModelMatrix, cubeMat)
+	g.Rend.DrawMesh(&cubeMesh, &tempModelMatrix, &cubeMat)
 
 	// Rotating cubes
-	window.Rend.DrawMesh(cubeMesh, rotatingCubeTrMat1, cubeMat)
-	window.Rend.DrawMesh(cubeMesh, rotatingCubeTrMat2, cubeMat)
-	window.Rend.DrawMesh(cubeMesh, rotatingCubeTrMat3, cubeMat)
+	g.Rend.DrawMesh(&cubeMesh, &rotatingCubeTrMat1, &cubeMat)
+	g.Rend.DrawMesh(&cubeMesh, &rotatingCubeTrMat2, &cubeMat)
+	g.Rend.DrawMesh(&cubeMesh, &rotatingCubeTrMat3, &cubeMat)
 
 	// Cubes generator
 	// rowSize := 1
 	// for y := 0; y < rowSize; y++ {
 	// 	for x := 0; x < rowSize; x++ {
 	// 		tempModelMatrix.Translate(gglm.NewVec3(-6, 0, 0))
-	// 		window.Rend.DrawMesh(cubeMesh, tempModelMatrix, cubeMat)
+	// 		g.Rend.DrawMesh(cubeMesh, tempModelMatrix, cubeMat)
 	// 	}
 	// 	tempModelMatrix.Translate(gglm.NewVec3(float32(rowSize), -1, 0))
 	// }
@@ -1369,7 +1371,7 @@ func (g *Game) DrawSkybox() {
 	gl.Disable(gl.CULL_FACE)
 	gl.DepthFunc(gl.LEQUAL)
 
-	window.Rend.DrawCubemap(skyboxMesh, skyboxMat)
+	g.Rend.DrawCubemap(&skyboxMesh, &skyboxMat)
 
 	gl.DepthFunc(gl.LESS)
 	gl.Enable(gl.CULL_FACE)

@@ -9,7 +9,6 @@ import (
 	"github.com/bloeys/nmage/assert"
 	"github.com/bloeys/nmage/assets"
 	"github.com/bloeys/nmage/input"
-	"github.com/bloeys/nmage/renderer"
 	"github.com/bloeys/nmage/timing"
 	nmageimgui "github.com/bloeys/nmage/ui/imgui"
 	"github.com/go-gl/gl/v4.1-core/gl"
@@ -31,7 +30,6 @@ type Window struct {
 	SDLWin         *sdl.Window
 	GlCtx          sdl.GLContext
 	EventCallbacks []func(sdl.Event)
-	Rend           renderer.Render
 }
 
 func (w *Window) handleInputs() {
@@ -170,22 +168,21 @@ func initSDL() error {
 	return nil
 }
 
-func CreateOpenGLWindow(title string, x, y, width, height int32, flags WindowFlags, rend renderer.Render) (Window, error) {
-	return createWindow(title, x, y, width, height, WindowFlags_OPENGL|flags, rend)
+func CreateOpenGLWindow(title string, x, y, width, height int32, flags WindowFlags) (Window, error) {
+	return createWindow(title, x, y, width, height, WindowFlags_OPENGL|flags)
 }
 
-func CreateOpenGLWindowCentered(title string, width, height int32, flags WindowFlags, rend renderer.Render) (Window, error) {
-	return createWindow(title, sdl.WINDOWPOS_CENTERED, sdl.WINDOWPOS_CENTERED, width, height, WindowFlags_OPENGL|flags, rend)
+func CreateOpenGLWindowCentered(title string, width, height int32, flags WindowFlags) (Window, error) {
+	return createWindow(title, sdl.WINDOWPOS_CENTERED, sdl.WINDOWPOS_CENTERED, width, height, WindowFlags_OPENGL|flags)
 }
 
-func createWindow(title string, x, y, width, height int32, flags WindowFlags, rend renderer.Render) (Window, error) {
+func createWindow(title string, x, y, width, height int32, flags WindowFlags) (Window, error) {
 
 	assert.T(isInited, "engine.Init() was not called!")
 
 	win := Window{
 		SDLWin:         nil,
 		EventCallbacks: make([]func(sdl.Event), 0),
-		Rend:           rend,
 	}
 
 	var err error

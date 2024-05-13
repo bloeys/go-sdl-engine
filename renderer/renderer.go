@@ -8,8 +8,8 @@ import (
 )
 
 type Render interface {
-	DrawMesh(mesh meshes.Mesh, trMat gglm.TrMat, mat materials.Material)
-	DrawVertexArray(mat materials.Material, vao buffers.VertexArray, firstElement int32, count int32)
-	DrawCubemap(mesh meshes.Mesh, mat materials.Material)
+	DrawMesh(mesh *meshes.Mesh, trMat *gglm.TrMat, mat *materials.Material)
+	DrawVertexArray(mat *materials.Material, vao *buffers.VertexArray, firstElement int32, count int32)
+	DrawCubemap(mesh *meshes.Mesh, mat *materials.Material)
 	FrameEnd()
 }
