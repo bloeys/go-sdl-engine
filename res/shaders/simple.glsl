@@ -37,6 +37,8 @@ struct PointLight {
     vec3 specularColor;
     float falloff;
     float radius;
+    float maxBias;
+    float nearPlane;
     float farPlane;
 };
 uniform PointLight pointLights[NUM_POINT_LIGHTS];
@@ -163,6 +165,8 @@ struct PointLight {
     vec3 specularColor;
     float falloff;
     float radius;
+    float maxBias;
+    float nearPlane;
     float farPlane;
 };
 uniform PointLight pointLights[NUM_POINT_LIGHTS];
@@ -251,21 +255,25 @@ vec3 CalcDirLight()
     return (finalDiffuse + finalSpecular) * (1 - shadow);
 }
 
-float CalcPointShadow(int lightIndex, vec3 worldLightPos, vec3 tangentLightDir, float farPlane) {
+float CalcPointShadow(int lightIndex, vec3 worldLightPos, vec3 tangentLightDir, float maxBias, float nearPlane, float farPlane) {
 
     vec3 lightToFrag = fragPos - worldLightPos;
+
+    // Get depth of current fragment
+    float currentDepth = length(lightToFrag);
+
+    if (currentDepth < nearPlane) {
+        return 0;
+    }
 
     float closestDepth = texture(pointLightCubeShadowMaps, vec4(lightToFrag, lightIndex)).r;
 
     // We stored depth in the cubemap in the range [0, 1], so now we move back to [0, farPlane]
     closestDepth *= farPlane;
 
-    // Get depth of current fragment
-    float currentDepth = length(lightToFrag);
+    float bias = max(maxBias * (1 - dot(normalizedVertNorm, tangentLightDir)), 0.005);
 
-    float bias = max(0.05 * (1 - dot(normalizedVertNorm, tangentLightDir)), 0.005);
-
-    float shadow = currentDepth -  bias > closestDepth ? 1.0 : 0.0;
+    float shadow = currentDepth - bias > closestDepth ? 1 : 0;
 
     return shadow;
 }
@@ -344,7 +352,7 @@ vec3 CalcPointLight(PointLight pointLight, int lightIndex)
     float attenuation = AttenuateNoCusp(distToLight, pointLight.radius, pointLight.falloff);
 
     // Shadow
-    float shadow = CalcPointShadow(lightIndex, pointLight.pos, tangentLightDir, pointLight.farPlane);
+    float shadow = CalcPointShadow(lightIndex, pointLight.pos, tangentLightDir, pointLight.maxBias, pointLight.nearPlane, pointLight.farPlane);
 
     return (finalDiffuse + finalSpecular) * attenuation * (1 - shadow);
 }
@@ -391,7 +399,10 @@ float CalcSpotShadow(vec3 tangentLightDir, int lightIndex)
 
 vec3 CalcSpotLight(SpotLight light, int lightIndex)
 {
-    if (light.innerCutoff == 0)
+    // The inner/outer cutoffs are cosine values,
+    // which means a value of 1 is mainly produced when the input
+    // is 0 degrees or radians. cos(180) will also be 1, but that's too much :)
+    if (light.innerCutoff == 1)
         return vec3(0);
 
     vec3 tangentLightDir = tangentSpotLightDirections[lightIndex];

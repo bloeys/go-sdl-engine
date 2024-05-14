@@ -38,7 +38,7 @@ import (
 		- Create VAO struct independent from VBO to support multi-VBO use cases (e.g. instancing) ✅
 		- Normals maps ✅
 		- HDR ✅
-		- Fix bad point light acne
+		- Fix bad point light acne ✅
 		- UBO support
 		- Cascaded shadow mapping
 		- Skeletal animations
@@ -60,10 +60,16 @@ type DirLight struct {
 }
 
 var (
+	renderDirLightShadows   = true
+	renderPointLightShadows = true
+	renderSpotLightShadows  = true
+
 	dirLightSize float32 = 30
 	dirLightNear float32 = 0.1
 	dirLightFar  float32 = 30
 	dirLightPos          = gglm.NewVec3(0, 10, 0)
+
+	pointLightRadiusToFarPlaneRatio float32 = 1.25
 )
 
 func (d *DirLight) GetProjViewMat() gglm.Mat4 {
@@ -91,6 +97,25 @@ type PointLight struct {
 	Radius  float32
 	Falloff float32
 
+	// NearPlane is the distance where if the pixel
+	// is closer to the light than this distance, no shadow will be casted.
+	//
+	// This helps not produce shadows from within objects.
+	// Same idea a camera near plane.
+	NearPlane float32
+
+	// MaxBias is the max shadow bias applied for this light.
+	// A usual value is 0.05
+	MaxBias float32
+
+	// Far plane is the max distance at which shadows from this
+	// light will show.
+	//
+	// This should be a bit bigger than the radius, as an object
+	// at the edge of the radius should still cast a shadow, and
+	// so this shadow will be further than the radius.
+	//
+	// Something like 'FarPlane=Radius*1.25' might work.
 	FarPlane float32
 }
 
@@ -260,39 +285,35 @@ var (
 	dpiScaling float32
 
 	// Light settings
-	ambientColor = gglm.NewVec3(0, 0, 0)
+	ambientColor = gglm.NewVec3(20.0/255, 20.0/255, 20.0/255)
 
 	dirLightDir = gglm.NewVec3(0, -0.5, -0.8)
 	// Lights
 	dirLight = DirLight{
 		Dir:           *dirLightDir.Normalize(),
-		DiffuseColor:  gglm.NewVec3(1, 1, 1),
+		DiffuseColor:  gglm.NewVec3(63.0/255, 63.0/255, 63.0/255),
 		SpecularColor: gglm.NewVec3(1, 1, 1),
 	}
 	pointLights = [...]PointLight{
 		{
-			Pos:           gglm.NewVec3(0, 2, -2),
+			Pos:           gglm.NewVec3(0, 4, -3),
 			DiffuseColor:  gglm.NewVec3(1, 0, 0),
 			SpecularColor: gglm.NewVec3(1, 1, 1),
 			Falloff:       1.0,
-			Radius:        20,
-			FarPlane:      25,
-		},
-		{
-			Pos:           gglm.NewVec3(0, -5, 0),
-			DiffuseColor:  gglm.NewVec3(0, 1, 0),
-			SpecularColor: gglm.NewVec3(1, 1, 1),
-			Falloff:       1.0,
-			Radius:        20,
-			FarPlane:      25,
+			Radius:        10,
+			MaxBias:       0.05,
+			NearPlane:     0.2,
+			FarPlane:      20 * pointLightRadiusToFarPlaneRatio,
 		},
 		{
 			Pos:           gglm.NewVec3(5, 0, 0),
 			DiffuseColor:  gglm.NewVec3(1, 1, 1),
 			SpecularColor: gglm.NewVec3(1, 1, 1),
 			Falloff:       1.0,
-			Radius:        20,
-			FarPlane:      25,
+			Radius:        10,
+			MaxBias:       0.05,
+			NearPlane:     0.2,
+			FarPlane:      20 * pointLightRadiusToFarPlaneRatio,
 		},
 		{
 			Pos:           gglm.NewVec3(-3, 4, 3),
@@ -300,7 +321,9 @@ var (
 			SpecularColor: gglm.NewVec3(1, 1, 1),
 			Falloff:       1.0,
 			Radius:        10,
-			FarPlane:      25,
+			MaxBias:       0.05,
+			NearPlane:     0.2,
+			FarPlane:      20 * pointLightRadiusToFarPlaneRatio,
 		},
 	}
 
@@ -452,7 +475,7 @@ func (g *Game) Init() {
 	// Camera
 	winWidth, winHeight := g.Win.SDLWin.GetSize()
 
-	camPos := gglm.NewVec3(0, 0, 10)
+	camPos := gglm.NewVec3(0, 10, 20)
 	camForward := gglm.NewVec3(0, 0, -1)
 	camWorldUp := gglm.NewVec3(0, 1, 0)
 	cam = camera.NewPerspective(
@@ -667,7 +690,7 @@ func (g *Game) initFbos() {
 	assert.T(demoFbo.IsComplete(), "Demo fbo is not complete after init")
 
 	// Depth map fbo
-	dirLightDepthMapFbo = buffers.NewFramebuffer(2048, 2048)
+	dirLightDepthMapFbo = buffers.NewFramebuffer(4096, 4096)
 	dirLightDepthMapFbo.SetNoColorBuffer()
 	dirLightDepthMapFbo.NewDepthAttachment(
 		buffers.FramebufferAttachmentType_Texture,
@@ -677,7 +700,7 @@ func (g *Game) initFbos() {
 	assert.T(dirLightDepthMapFbo.IsComplete(), "Depth map fbo is not complete after init")
 
 	// Point light depth map fbo
-	pointLightDepthMapFbo = buffers.NewFramebuffer(512, 512)
+	pointLightDepthMapFbo = buffers.NewFramebuffer(1024, 1024)
 	pointLightDepthMapFbo.SetNoColorBuffer()
 	pointLightDepthMapFbo.NewDepthCubemapArrayAttachment(
 		buffers.FramebufferAttachmentDataFormat_DepthF32,
@@ -687,7 +710,7 @@ func (g *Game) initFbos() {
 	assert.T(pointLightDepthMapFbo.IsComplete(), "Point light depth map fbo is not complete after init")
 
 	// Spot light depth map fbo
-	spotLightDepthMapFbo = buffers.NewFramebuffer(512, 512)
+	spotLightDepthMapFbo = buffers.NewFramebuffer(1024, 1024)
 	spotLightDepthMapFbo.SetNoColorBuffer()
 	spotLightDepthMapFbo.NewDepthTextureArrayAttachment(
 		buffers.FramebufferAttachmentDataFormat_DepthF32,
@@ -725,35 +748,53 @@ func (g *Game) updateLights() {
 		p := &pointLights[i]
 		indexString := "pointLights[" + strconv.Itoa(i) + "]"
 
-		whiteMat.SetUnifVec3(indexString+".pos", &p.Pos)
-		containerMat.SetUnifVec3(indexString+".pos", &p.Pos)
-		groundMat.SetUnifVec3(indexString+".pos", &p.Pos)
-		palleteMat.SetUnifVec3(indexString+".pos", &p.Pos)
+		posStr := indexString + ".pos"
+		whiteMat.SetUnifVec3(posStr, &p.Pos)
+		containerMat.SetUnifVec3(posStr, &p.Pos)
+		groundMat.SetUnifVec3(posStr, &p.Pos)
+		palleteMat.SetUnifVec3(posStr, &p.Pos)
 
-		whiteMat.SetUnifVec3(indexString+".diffuseColor", &p.DiffuseColor)
-		containerMat.SetUnifVec3(indexString+".diffuseColor", &p.DiffuseColor)
-		groundMat.SetUnifVec3(indexString+".diffuseColor", &p.DiffuseColor)
-		palleteMat.SetUnifVec3(indexString+".diffuseColor", &p.DiffuseColor)
+		diffuseStr := indexString + ".diffuseColor"
+		whiteMat.SetUnifVec3(diffuseStr, &p.DiffuseColor)
+		containerMat.SetUnifVec3(diffuseStr, &p.DiffuseColor)
+		groundMat.SetUnifVec3(diffuseStr, &p.DiffuseColor)
+		palleteMat.SetUnifVec3(diffuseStr, &p.DiffuseColor)
 
-		whiteMat.SetUnifVec3(indexString+".specularColor", &p.SpecularColor)
-		containerMat.SetUnifVec3(indexString+".specularColor", &p.SpecularColor)
-		groundMat.SetUnifVec3(indexString+".specularColor", &p.SpecularColor)
-		palleteMat.SetUnifVec3(indexString+".specularColor", &p.SpecularColor)
+		specularStr := indexString + ".specularColor"
+		whiteMat.SetUnifVec3(specularStr, &p.SpecularColor)
+		containerMat.SetUnifVec3(specularStr, &p.SpecularColor)
+		groundMat.SetUnifVec3(specularStr, &p.SpecularColor)
+		palleteMat.SetUnifVec3(specularStr, &p.SpecularColor)
 
-		whiteMat.SetUnifFloat32(indexString+".falloff", p.Falloff)
-		containerMat.SetUnifFloat32(indexString+".falloff", p.Falloff)
-		groundMat.SetUnifFloat32(indexString+".falloff", p.Falloff)
-		palleteMat.SetUnifFloat32(indexString+".falloff", p.Falloff)
+		falloffStr := indexString + ".falloff"
+		whiteMat.SetUnifFloat32(falloffStr, p.Falloff)
+		containerMat.SetUnifFloat32(falloffStr, p.Falloff)
+		groundMat.SetUnifFloat32(falloffStr, p.Falloff)
+		palleteMat.SetUnifFloat32(falloffStr, p.Falloff)
 
-		whiteMat.SetUnifFloat32(indexString+".radius", p.Radius)
-		containerMat.SetUnifFloat32(indexString+".radius", p.Radius)
-		groundMat.SetUnifFloat32(indexString+".radius", p.Radius)
-		palleteMat.SetUnifFloat32(indexString+".radius", p.Radius)
+		radiusStr := indexString + ".radius"
+		whiteMat.SetUnifFloat32(radiusStr, p.Radius)
+		containerMat.SetUnifFloat32(radiusStr, p.Radius)
+		groundMat.SetUnifFloat32(radiusStr, p.Radius)
+		palleteMat.SetUnifFloat32(radiusStr, p.Radius)
 
-		whiteMat.SetUnifFloat32(indexString+".farPlane", p.FarPlane)
-		containerMat.SetUnifFloat32(indexString+".farPlane", p.FarPlane)
-		groundMat.SetUnifFloat32(indexString+".farPlane", p.FarPlane)
-		palleteMat.SetUnifFloat32(indexString+".farPlane", p.FarPlane)
+		maxBiasStr := indexString + ".maxBias"
+		whiteMat.SetUnifFloat32(maxBiasStr, p.MaxBias)
+		containerMat.SetUnifFloat32(maxBiasStr, p.MaxBias)
+		groundMat.SetUnifFloat32(maxBiasStr, p.MaxBias)
+		palleteMat.SetUnifFloat32(maxBiasStr, p.MaxBias)
+
+		nearPlaneStr := indexString + ".nearPlane"
+		whiteMat.SetUnifFloat32(nearPlaneStr, p.NearPlane)
+		containerMat.SetUnifFloat32(nearPlaneStr, p.NearPlane)
+		groundMat.SetUnifFloat32(nearPlaneStr, p.NearPlane)
+		palleteMat.SetUnifFloat32(nearPlaneStr, p.NearPlane)
+
+		farPlaneStr := indexString + ".farPlane"
+		whiteMat.SetUnifFloat32(farPlaneStr, p.FarPlane)
+		containerMat.SetUnifFloat32(farPlaneStr, p.FarPlane)
+		groundMat.SetUnifFloat32(farPlaneStr, p.FarPlane)
+		palleteMat.SetUnifFloat32(farPlaneStr, p.FarPlane)
 	}
 
 	whiteMat.CubemapArrayTex = pointLightDepthMapFbo.Attachments[0].Id
@@ -840,7 +881,7 @@ func (g *Game) showDebugWindow() {
 		}
 	}
 
-	imgui.PlotLinesFloatPtrV("Frame Times", frameTimesMs, int32(len(frameTimesMs)), 0, "", 0, 16, imgui.Vec2{Y: 200}, 4)
+	imgui.PlotLinesFloatPtrV("Frame Times", frameTimesMs, int32(len(frameTimesMs)), 0, "", 0, 16, imgui.Vec2{Y: 50}, 4)
 
 	imgui.Spacing()
 
@@ -859,7 +900,7 @@ func (g *Game) showDebugWindow() {
 
 	imgui.Text("HDR")
 	imgui.Checkbox("Enable HDR", &hdrRendering)
-	if imgui.DragFloat("Exposure", &hdrExposure) {
+	if imgui.DragFloatV("Exposure", &hdrExposure, 0.1, -10, 100, "%.3f", imgui.SliderFlagsNone) {
 		tonemappedScreenQuadMat.SetUnifFloat32("exposure", hdrExposure)
 	}
 
@@ -967,7 +1008,7 @@ func (g *Game) showDebugWindow() {
 				palleteMat.SetUnifVec3(specularStr, &pl.SpecularColor)
 			}
 
-			if imgui.DragFloatV("Falloff", &pl.Falloff, 0.1, 0.001, 100, "%.3f", imgui.SliderFlagsNone) {
+			if imgui.DragFloatV("Falloff", &pl.Falloff, 0.1, 0, 100, "%.3f", imgui.SliderFlagsNone) {
 
 				falloffStr := indexString + ".falloff"
 
@@ -979,12 +1020,29 @@ func (g *Game) showDebugWindow() {
 
 			if imgui.DragFloatV("Radius", &pl.Radius, 0.2, 0, 500, "%.3f", imgui.SliderFlagsNone) {
 
-				falloffStr := indexString + ".radius"
+				radiusStr := indexString + ".radius"
 
-				whiteMat.SetUnifFloat32(falloffStr, pl.Radius)
-				containerMat.SetUnifFloat32(falloffStr, pl.Radius)
-				groundMat.SetUnifFloat32(falloffStr, pl.Radius)
-				palleteMat.SetUnifFloat32(falloffStr, pl.Radius)
+				whiteMat.SetUnifFloat32(radiusStr, pl.Radius)
+				containerMat.SetUnifFloat32(radiusStr, pl.Radius)
+				groundMat.SetUnifFloat32(radiusStr, pl.Radius)
+				palleteMat.SetUnifFloat32(radiusStr, pl.Radius)
+
+				farPlaneStr := indexString + ".farPlane"
+				pl.FarPlane = pl.Radius * pointLightRadiusToFarPlaneRatio
+
+				whiteMat.SetUnifFloat32(farPlaneStr, pl.FarPlane)
+				containerMat.SetUnifFloat32(farPlaneStr, pl.FarPlane)
+				groundMat.SetUnifFloat32(farPlaneStr, pl.FarPlane)
+				palleteMat.SetUnifFloat32(farPlaneStr, pl.FarPlane)
+			}
+
+			if imgui.DragFloatV("Max Bias", &pl.MaxBias, 0.01, 0, 10, "%.3f", imgui.SliderFlagsNone) {
+
+				maxBiasStr := indexString + ".maxBias"
+				whiteMat.SetUnifFloat32(maxBiasStr, pl.MaxBias)
+				containerMat.SetUnifFloat32(maxBiasStr, pl.MaxBias)
+				groundMat.SetUnifFloat32(maxBiasStr, pl.MaxBias)
+				palleteMat.SetUnifFloat32(maxBiasStr, pl.MaxBias)
 			}
 
 			imgui.TreePop()
@@ -1158,10 +1216,6 @@ func (g *Game) updateCameraPos() {
 }
 
 var (
-	renderDirLightShadows   = true
-	renderPointLightShadows = true
-	renderSpotLightShadows  = true
-
 	rotatingCubeSpeedDeg1 float32 = 45
 	rotatingCubeSpeedDeg2 float32 = 120
 	rotatingCubeSpeedDeg3 float32 = 120
