@@ -41,7 +41,6 @@ func Run(g Game, w *Window, rend renderer.Render, ui nmageimgui.ImguiInfo) {
 
 	for isRunning {
 
-		//PERF: Cache these
 		width, height = w.SDLWin.GetSize()
 		fbWidth, fbHeight = w.SDLWin.GLGetDrawableSize()
 

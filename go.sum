@@ -2,8 +2,8 @@ github.com/AllenDang/cimgui-go v0.0.0-20230720025235-f2ff398a66b2 h1:3HA/5qD8Rim
 github.com/AllenDang/cimgui-go v0.0.0-20230720025235-f2ff398a66b2/go.mod h1:iNfbIyOBN8k3XScMxULbrwYbPsXEAUD0Jb6UwrspQb8=
 github.com/bloeys/assimp-go v0.4.4 h1:Yn5e/RpE0Oes0YMBy8O7KkwAO4R/RpgrZPJCt08dVIU=
 github.com/bloeys/assimp-go v0.4.4/go.mod h1:my3yRxT7CfOztmvi+0svmwbaqw0KFrxaHxncoyaEIP0=
-github.com/bloeys/gglm v0.49.0 h1:YtbyHpszYhjnxw7KVV0LaCdBktRMqfGx/i37EMomxsE=
-github.com/bloeys/gglm v0.49.0/go.mod h1:qwJQ0WzV191wAMwlGicbfbChbKoSedMk7gFFX6GnyOk=
+github.com/bloeys/gglm v0.50.0 h1:DlGLp9z8KMNx+hNR6PjnPmC0HjDRC19QwAKL1iwhOxs=
+github.com/bloeys/gglm v0.50.0/go.mod h1:5s2U/NiOrtJyrSup1j8wK+QOBmGIO03ub0LHMvuNSK8=
 github.com/go-gl/gl v0.0.0-20211210172815-726fda9656d6 h1:zDw5v7qm4yH7N8C8uWd+8Ii9rROdgWxQuGoJ9WDXxfk=
 github.com/go-gl/gl v0.0.0-20211210172815-726fda9656d6/go.mod h1:9YTyiznxEY1fVinfM7RvRcjRHbw2xLBJ3AAGIT0I4Nw=
 github.com/mandykoh/go-parallel v0.1.0 h1:7vJMNMC4dsbgZdkAb2A8tV5ENY1v7VxIO1wzQWZoT8k=
@@ -15,6 +15,8 @@ github.com/veandco/go-sdl2 v0.4.35/go.mod h1:OROqMhHD43nT4/i9crJukyVecjPNYYuCofe
 github.com/yuin/goldmark v1.4.13/go.mod h1:6yULJ656Px+3vBD8DxQVa3kxgyrAnzto9xy5taEt/CY=
 golang.org/x/crypto v0.0.0-20190308221718-c2843e01d9a2/go.mod h1:djNgcEr1/C05ACkg1iLfiJU5Ep61QUkGW8qpdssI0+w=
 golang.org/x/crypto v0.0.0-20210921155107-089bfa567519/go.mod h1:GvvjBRRGRdwPK5ydBHafDWAxML/pGHZbMvKqRZ5+Abc=
+golang.org/x/exp v0.0.0-20240506185415-9bf2ced13842 h1:vr/HnozRka3pE4EsMEg1lgkXJkTFJCVUX+S/ZT6wYzM=
+golang.org/x/exp v0.0.0-20240506185415-9bf2ced13842/go.mod h1:XtvwrStGgqGPLc4cjQfWqZHG1YFdYs6swckp8vpsjnc=
 golang.org/x/image v0.5.0 h1:5JMiNunQeQw++mMOz48/ISeNu3Iweh/JaZU8ZLqHRrI=
 golang.org/x/image v0.5.0/go.mod h1:FVC7BI/5Ym8R25iw5OLsgshdUBbT1h5jZTpA+mvAdZ4=
 golang.org/x/mod v0.6.0-dev.0.20220419223038-86c51ed26bb4/go.mod h1:jJ57K6gSWd91VN4djpZkiMVwK6gcyfeH4XE8wZrZaV4=

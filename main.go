@@ -200,8 +200,8 @@ var (
 	frameTimesMsIndex int       = 0
 	frameTimesMs      []float32 = make([]float32, 0, FRAME_TIME_MS_SAMPLES)
 
-	camSpeed         float32 = 15
-	mouseSensitivity float32 = 0.5
+	camMoveSpeed float32 = 15
+	camRotSpeed  float32 = 0.5
 
 	window engine.Window
 
@@ -412,9 +412,10 @@ func (g *Game) handleWindowEvents(e sdl.Event) {
 
 			g.WinWidth = e.Data1
 			g.WinHeight = e.Data2
-			cam.AspectRatio = float32(g.WinWidth) / float32(g.WinHeight)
 
+			cam.AspectRatio = float32(g.WinWidth) / float32(g.WinHeight)
 			cam.Update()
+
 			updateAllProjViewMats(cam.ProjMat, cam.ViewMat)
 		}
 	}
@@ -886,7 +887,7 @@ func (g *Game) showDebugWindow() {
 	// Ambient light
 	imgui.Text("Ambient Light")
 
-	if imgui.DragFloat3("Ambient Color", &ambientColor.Data) {
+	if imgui.ColorEdit3("Ambient Color", &ambientColor.Data) {
 		whiteMat.SetUnifVec3("ambientColor", &ambientColor)
 		containerMat.SetUnifVec3("ambientColor", &ambientColor)
 		groundMat.SetUnifVec3("ambientColor", &ambientColor)
@@ -907,14 +908,14 @@ func (g *Game) showDebugWindow() {
 		palleteMat.SetUnifVec3("dirLight.dir", &dirLight.Dir)
 	}
 
-	if imgui.DragFloat3("Diffuse Color", &dirLight.DiffuseColor.Data) {
+	if imgui.ColorEdit3("Diffuse Color", &dirLight.DiffuseColor.Data) {
 		whiteMat.SetUnifVec3("dirLight.diffuseColor", &dirLight.DiffuseColor)
 		containerMat.SetUnifVec3("dirLight.diffuseColor", &dirLight.DiffuseColor)
 		groundMat.SetUnifVec3("dirLight.diffuseColor", &dirLight.DiffuseColor)
 		palleteMat.SetUnifVec3("dirLight.diffuseColor", &dirLight.DiffuseColor)
 	}
 
-	if imgui.DragFloat3("Specular Color", &dirLight.SpecularColor.Data) {
+	if imgui.ColorEdit3("Specular Color", &dirLight.SpecularColor.Data) {
 		whiteMat.SetUnifVec3("dirLight.specularColor", &dirLight.SpecularColor)
 		containerMat.SetUnifVec3("dirLight.specularColor", &dirLight.SpecularColor)
 		groundMat.SetUnifVec3("dirLight.specularColor", &dirLight.SpecularColor)
@@ -962,14 +963,14 @@ func (g *Game) showDebugWindow() {
 				palleteMat.SetUnifVec3(indexString+".pos", &pl.Pos)
 			}
 
-			if imgui.DragFloat3("Diffuse Color", &pl.DiffuseColor.Data) {
+			if imgui.ColorEdit3("Diffuse Color", &pl.DiffuseColor.Data) {
 				whiteMat.SetUnifVec3(indexString+".diffuseColor", &pl.DiffuseColor)
 				containerMat.SetUnifVec3(indexString+".diffuseColor", &pl.DiffuseColor)
 				groundMat.SetUnifVec3(indexString+".diffuseColor", &pl.DiffuseColor)
 				palleteMat.SetUnifVec3(indexString+".diffuseColor", &pl.DiffuseColor)
 			}
 
-			if imgui.DragFloat3("Specular Color", &pl.SpecularColor.Data) {
+			if imgui.ColorEdit3("Specular Color", &pl.SpecularColor.Data) {
 				whiteMat.SetUnifVec3(indexString+".specularColor", &pl.SpecularColor)
 				containerMat.SetUnifVec3(indexString+".specularColor", &pl.SpecularColor)
 				groundMat.SetUnifVec3(indexString+".specularColor", &pl.SpecularColor)
@@ -1012,34 +1013,39 @@ func (g *Game) showDebugWindow() {
 				palleteMat.SetUnifVec3(indexString+".dir", &l.Dir)
 			}
 
-			if imgui.DragFloat3("Diffuse Color", &l.DiffuseColor.Data) {
+			if imgui.ColorEdit3("Diffuse Color", &l.DiffuseColor.Data) {
 				whiteMat.SetUnifVec3(indexString+".diffuseColor", &l.DiffuseColor)
 				containerMat.SetUnifVec3(indexString+".diffuseColor", &l.DiffuseColor)
 				groundMat.SetUnifVec3(indexString+".diffuseColor", &l.DiffuseColor)
 				palleteMat.SetUnifVec3(indexString+".diffuseColor", &l.DiffuseColor)
 			}
 
-			if imgui.DragFloat3("Specular Color", &l.SpecularColor.Data) {
+			if imgui.ColorEdit3("Specular Color", &l.SpecularColor.Data) {
 				whiteMat.SetUnifVec3(indexString+".specularColor", &l.SpecularColor)
 				containerMat.SetUnifVec3(indexString+".specularColor", &l.SpecularColor)
 				groundMat.SetUnifVec3(indexString+".specularColor", &l.SpecularColor)
 				palleteMat.SetUnifVec3(indexString+".specularColor", &l.SpecularColor)
 			}
 
-			if imgui.DragFloat("Inner Cutoff Radians", &l.InnerCutoffRad) {
+			if imgui.DragFloatRange2V(
+				"Cutoff Radians",
+				&l.InnerCutoffRad,
+				&l.OuterCutoffRad,
+				0.1,
+				0,
+				0,
+				"%.3f",
+				"%.3f",
+				imgui.SliderFlagsNone,
+			) {
 
 				cos := l.InnerCutoffCos()
-
 				whiteMat.SetUnifFloat32(indexString+".innerCutoff", cos)
 				containerMat.SetUnifFloat32(indexString+".innerCutoff", cos)
 				groundMat.SetUnifFloat32(indexString+".innerCutoff", cos)
 				palleteMat.SetUnifFloat32(indexString+".innerCutoff", cos)
-			}
 
-			if imgui.DragFloat("Outer Cutoff Radians", &l.OuterCutoffRad) {
-
-				cos := l.OuterCutoffCos()
-
+				cos = l.OuterCutoffCos()
 				whiteMat.SetUnifFloat32(indexString+".outerCutoff", cos)
 				containerMat.SetUnifFloat32(indexString+".outerCutoff", cos)
 				groundMat.SetUnifFloat32(indexString+".outerCutoff", cos)
@@ -1084,11 +1090,15 @@ func (g *Game) updateCameraLookAround() {
 		return
 	}
 
+	const MAX_MOUSE_MOVE = 300
+	mouseX = gglm.Clamp(mouseX, -MAX_MOUSE_MOVE, MAX_MOUSE_MOVE)
+	mouseY = gglm.Clamp(mouseY, -MAX_MOUSE_MOVE, MAX_MOUSE_MOVE)
+
 	// Yaw
-	yaw += float32(mouseX) * mouseSensitivity * timing.DT()
+	yaw += float32(mouseX) * camRotSpeed * timing.DT()
 
 	// Pitch
-	pitch += float32(-mouseY) * mouseSensitivity * timing.DT()
+	pitch += float32(-mouseY) * camRotSpeed * timing.DT()
 	if pitch > 1.5 {
 		pitch = 1.5
 	}
@@ -1097,7 +1107,6 @@ func (g *Game) updateCameraLookAround() {
 		pitch = -1.5
 	}
 
-	// Update cam forward
 	cam.UpdateRotation(pitch, yaw)
 
 	updateAllProjViewMats(cam.ProjMat, cam.ViewMat)
@@ -1114,21 +1123,21 @@ func (g *Game) updateCameraPos() {
 
 	// Forward and backward
 	if input.KeyDown(sdl.K_w) {
-		cam.Pos.Add(cam.Forward.Clone().Scale(camSpeed * camSpeedScale * timing.DT()))
+		cam.Pos.Add(cam.Forward.Clone().Scale(camMoveSpeed * camSpeedScale * timing.DT()))
 		update = true
 	} else if input.KeyDown(sdl.K_s) {
-		cam.Pos.Add(cam.Forward.Clone().Scale(-camSpeed * camSpeedScale * timing.DT()))
+		cam.Pos.Add(cam.Forward.Clone().Scale(-camMoveSpeed * camSpeedScale * timing.DT()))
 		update = true
 	}
 
 	// Left and right
 	if input.KeyDown(sdl.K_d) {
 		cross := gglm.Cross(&cam.Forward, &cam.WorldUp)
-		cam.Pos.Add(cross.Normalize().Scale(camSpeed * camSpeedScale * timing.DT()))
+		cam.Pos.Add(cross.Normalize().Scale(camMoveSpeed * camSpeedScale * timing.DT()))
 		update = true
 	} else if input.KeyDown(sdl.K_a) {
 		cross := gglm.Cross(&cam.Forward, &cam.WorldUp)
-		cam.Pos.Add(cross.Normalize().Scale(-camSpeed * camSpeedScale * timing.DT()))
+		cam.Pos.Add(cross.Normalize().Scale(-camMoveSpeed * camSpeedScale * timing.DT()))
 		update = true
 	}
 
