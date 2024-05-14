@@ -82,18 +82,14 @@ func (d *DirLight) GetProjViewMat() gglm.Mat4 {
 	return *projMat.Mul(&viewMat)
 }
 
-// Check https://wiki.ogre3d.org/tiki-index.php?page=-Point+Light+Attenuation for values
+// Based on: https://lisyarus.github.io/blog/posts/point-light-attenuation.html
 type PointLight struct {
 	Pos           gglm.Vec3
 	DiffuseColor  gglm.Vec3
 	SpecularColor gglm.Vec3
 
-	// @TODO
-	Radius float32
-
-	Constant  float32
-	Linear    float32
-	Quadratic float32
+	Radius  float32
+	Falloff float32
 
 	FarPlane float32
 }
@@ -278,38 +274,32 @@ var (
 			Pos:           gglm.NewVec3(0, 2, -2),
 			DiffuseColor:  gglm.NewVec3(1, 0, 0),
 			SpecularColor: gglm.NewVec3(1, 1, 1),
-			// These values are for 50m range
-			Constant:  1.0,
-			Linear:    0.09,
-			Quadratic: 0.032,
-
-			FarPlane: 25,
+			Falloff:       1.0,
+			Radius:        20,
+			FarPlane:      25,
 		},
 		{
 			Pos:           gglm.NewVec3(0, -5, 0),
 			DiffuseColor:  gglm.NewVec3(0, 1, 0),
 			SpecularColor: gglm.NewVec3(1, 1, 1),
-			Constant:      1.0,
-			Linear:        0.09,
-			Quadratic:     0.032,
+			Falloff:       1.0,
+			Radius:        20,
 			FarPlane:      25,
 		},
 		{
 			Pos:           gglm.NewVec3(5, 0, 0),
 			DiffuseColor:  gglm.NewVec3(1, 1, 1),
 			SpecularColor: gglm.NewVec3(1, 1, 1),
-			Constant:      1.0,
-			Linear:        0.09,
-			Quadratic:     0.032,
+			Falloff:       1.0,
+			Radius:        20,
 			FarPlane:      25,
 		},
 		{
 			Pos:           gglm.NewVec3(-3, 4, 3),
 			DiffuseColor:  gglm.NewVec3(1, 1, 1),
 			SpecularColor: gglm.NewVec3(1, 1, 1),
-			Constant:      1.0,
-			Linear:        0.09,
-			Quadratic:     0.032,
+			Falloff:       1.0,
+			Radius:        10,
 			FarPlane:      25,
 		},
 	}
@@ -750,20 +740,15 @@ func (g *Game) updateLights() {
 		groundMat.SetUnifVec3(indexString+".specularColor", &p.SpecularColor)
 		palleteMat.SetUnifVec3(indexString+".specularColor", &p.SpecularColor)
 
-		whiteMat.SetUnifFloat32(indexString+".constant", p.Constant)
-		containerMat.SetUnifFloat32(indexString+".constant", p.Constant)
-		groundMat.SetUnifFloat32(indexString+".constant", p.Constant)
-		palleteMat.SetUnifFloat32(indexString+".constant", p.Constant)
+		whiteMat.SetUnifFloat32(indexString+".falloff", p.Falloff)
+		containerMat.SetUnifFloat32(indexString+".falloff", p.Falloff)
+		groundMat.SetUnifFloat32(indexString+".falloff", p.Falloff)
+		palleteMat.SetUnifFloat32(indexString+".falloff", p.Falloff)
 
-		whiteMat.SetUnifFloat32(indexString+".linear", p.Linear)
-		containerMat.SetUnifFloat32(indexString+".linear", p.Linear)
-		groundMat.SetUnifFloat32(indexString+".linear", p.Linear)
-		palleteMat.SetUnifFloat32(indexString+".linear", p.Linear)
-
-		whiteMat.SetUnifFloat32(indexString+".quadratic", p.Quadratic)
-		containerMat.SetUnifFloat32(indexString+".quadratic", p.Quadratic)
-		groundMat.SetUnifFloat32(indexString+".quadratic", p.Quadratic)
-		palleteMat.SetUnifFloat32(indexString+".quadratic", p.Quadratic)
+		whiteMat.SetUnifFloat32(indexString+".radius", p.Radius)
+		containerMat.SetUnifFloat32(indexString+".radius", p.Radius)
+		groundMat.SetUnifFloat32(indexString+".radius", p.Radius)
+		palleteMat.SetUnifFloat32(indexString+".radius", p.Radius)
 
 		whiteMat.SetUnifFloat32(indexString+".farPlane", p.FarPlane)
 		containerMat.SetUnifFloat32(indexString+".farPlane", p.FarPlane)
@@ -832,10 +817,6 @@ func (g *Game) Update() {
 	g.updateCameraPos()
 
 	g.showDebugWindow()
-
-	if input.KeyClicked(sdl.K_F4) {
-		logging.InfoLog.Printf("Pos: %s; Forward: %s; |Forward|: %f\n", cam.Pos.String(), cam.Forward.String(), cam.Forward.Mag())
-	}
 }
 
 func (g *Game) showDebugWindow() {
@@ -957,24 +938,53 @@ func (g *Game) showDebugWindow() {
 			indexString := "pointLights[" + indexNumString + "]"
 
 			if imgui.DragFloat3("Pos", &pl.Pos.Data) {
-				whiteMat.SetUnifVec3(indexString+".pos", &pl.Pos)
-				containerMat.SetUnifVec3(indexString+".pos", &pl.Pos)
-				groundMat.SetUnifVec3(indexString+".pos", &pl.Pos)
-				palleteMat.SetUnifVec3(indexString+".pos", &pl.Pos)
+
+				posStr := indexString + ".pos"
+
+				whiteMat.SetUnifVec3(posStr, &pl.Pos)
+				containerMat.SetUnifVec3(posStr, &pl.Pos)
+				groundMat.SetUnifVec3(posStr, &pl.Pos)
+				palleteMat.SetUnifVec3(posStr, &pl.Pos)
 			}
 
 			if imgui.ColorEdit3("Diffuse Color", &pl.DiffuseColor.Data) {
-				whiteMat.SetUnifVec3(indexString+".diffuseColor", &pl.DiffuseColor)
-				containerMat.SetUnifVec3(indexString+".diffuseColor", &pl.DiffuseColor)
-				groundMat.SetUnifVec3(indexString+".diffuseColor", &pl.DiffuseColor)
-				palleteMat.SetUnifVec3(indexString+".diffuseColor", &pl.DiffuseColor)
+
+				diffStr := indexString + ".diffuseColor"
+
+				whiteMat.SetUnifVec3(diffStr, &pl.DiffuseColor)
+				containerMat.SetUnifVec3(diffStr, &pl.DiffuseColor)
+				groundMat.SetUnifVec3(diffStr, &pl.DiffuseColor)
+				palleteMat.SetUnifVec3(diffStr, &pl.DiffuseColor)
 			}
 
 			if imgui.ColorEdit3("Specular Color", &pl.SpecularColor.Data) {
-				whiteMat.SetUnifVec3(indexString+".specularColor", &pl.SpecularColor)
-				containerMat.SetUnifVec3(indexString+".specularColor", &pl.SpecularColor)
-				groundMat.SetUnifVec3(indexString+".specularColor", &pl.SpecularColor)
-				palleteMat.SetUnifVec3(indexString+".specularColor", &pl.SpecularColor)
+
+				specularStr := indexString + ".specularColor"
+
+				whiteMat.SetUnifVec3(specularStr, &pl.SpecularColor)
+				containerMat.SetUnifVec3(specularStr, &pl.SpecularColor)
+				groundMat.SetUnifVec3(specularStr, &pl.SpecularColor)
+				palleteMat.SetUnifVec3(specularStr, &pl.SpecularColor)
+			}
+
+			if imgui.DragFloatV("Falloff", &pl.Falloff, 0.1, 0.001, 100, "%.3f", imgui.SliderFlagsNone) {
+
+				falloffStr := indexString + ".falloff"
+
+				whiteMat.SetUnifFloat32(falloffStr, pl.Falloff)
+				containerMat.SetUnifFloat32(falloffStr, pl.Falloff)
+				groundMat.SetUnifFloat32(falloffStr, pl.Falloff)
+				palleteMat.SetUnifFloat32(falloffStr, pl.Falloff)
+			}
+
+			if imgui.DragFloatV("Radius", &pl.Radius, 0.2, 0, 500, "%.3f", imgui.SliderFlagsNone) {
+
+				falloffStr := indexString + ".radius"
+
+				whiteMat.SetUnifFloat32(falloffStr, pl.Radius)
+				containerMat.SetUnifFloat32(falloffStr, pl.Radius)
+				groundMat.SetUnifFloat32(falloffStr, pl.Radius)
+				palleteMat.SetUnifFloat32(falloffStr, pl.Radius)
 			}
 
 			imgui.TreePop()

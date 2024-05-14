@@ -35,9 +35,8 @@ struct PointLight {
     vec3 pos;
     vec3 diffuseColor;
     vec3 specularColor;
-    float constant;
-    float linear;
-    float quadratic;
+    float falloff;
+    float radius;
     float farPlane;
 };
 uniform PointLight pointLights[NUM_POINT_LIGHTS];
@@ -162,9 +161,8 @@ struct PointLight {
     vec3 pos;
     vec3 diffuseColor;
     vec3 specularColor;
-    float constant;
-    float linear;
-    float quadratic;
+    float falloff;
+    float radius;
     float farPlane;
 };
 uniform PointLight pointLights[NUM_POINT_LIGHTS];
@@ -272,10 +270,60 @@ float CalcPointShadow(int lightIndex, vec3 worldLightPos, vec3 tangentLightDir, 
     return shadow;
 }
 
+//
+// The following point light attenuation formulas
+// are from https://lisyarus.github.io/blog/posts/point-light-attenuation.html
+//
+// I found them more intuitive than the standard implementation and it also ensures
+// we have zero light at the selected distance.
+//
+float sqr(float x)
+{
+    return x * x;
+}
+
+// This version doesn't have a harsh cutoff at radius
+float AttenuateNoCusp(float dist, float radius, float falloff)
+{
+    // Since we only use this as attenuation and max intensity defines
+    // the max output value, anything more than 1 would increase
+    // the output of the light, which I don't think makes sense for
+    // our attenuation purposes.
+    //
+    // Seems to me this can be done simply by increasing color values above 255. 
+    //
+    // Forcing to 1 for now.
+    #define MAX_INTENSITY 1
+
+    float s = dist / radius;
+
+    if (s >= 1.0)
+        return 0.0;
+
+    float s2 = sqr(s);
+
+    return MAX_INTENSITY * sqr(1 - s2) / (1 + falloff * s2);
+}
+
+// This version has a harsh/immediate cutoff at radius
+float AttenuateCusp(float dist, float radius, float falloff)
+{
+    #define MAX_INTENSITY 1
+
+    float s = dist / radius;
+
+    if (s >= 1.0)
+        return 0.0;
+
+    float s2 = sqr(s);
+
+    return MAX_INTENSITY * sqr(1 - s2) / (1 + falloff * s);
+}
+
 vec3 CalcPointLight(PointLight pointLight, int lightIndex)
 {
-    // Ignore unset lights
-    if (pointLight.constant == 0){
+    // Ignore inactive lights
+    if (pointLight.radius == 0){
         return vec3(0);
     }
 
@@ -293,7 +341,7 @@ vec3 CalcPointLight(PointLight pointLight, int lightIndex)
 
     // Attenuation
     float distToLight = length(tangentLightPos - tangentFragPos);
-    float attenuation = 1 / (pointLight.constant + pointLight.linear * distToLight + pointLight.quadratic * (distToLight * distToLight));  
+    float attenuation = AttenuateNoCusp(distToLight, pointLight.radius, pointLight.falloff);
 
     // Shadow
     float shadow = CalcPointShadow(lightIndex, pointLight.pos, tangentLightDir, pointLight.farPlane);
