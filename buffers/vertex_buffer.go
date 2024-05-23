@@ -55,7 +55,7 @@ func NewVertexBuffer(layout ...Element) VertexBuffer {
 
 	gl.GenBuffers(1, &vb.Id)
 	if vb.Id == 0 {
-		logging.ErrLog.Println("Failed to create OpenGL buffer")
+		logging.ErrLog.Panicln("Failed to create OpenGL buffer")
 	}
 
 	vb.SetLayout(layout...)

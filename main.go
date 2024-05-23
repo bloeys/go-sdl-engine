@@ -40,9 +40,10 @@ import (
 		- HDR ✅
 		- Fix bad point light acne ✅
 		- UBO support
-		- Cascaded shadow mapping
 		- Skeletal animations
+		- Cascaded shadow mapping
 	- In some cases we DO want input even when captured by UI. We need two systems within input package, one filtered and one not✅
+	- Support OpenGL 4.1 and 4.6, and default to 4.6.
 	- Proper model loading (i.e. load model by reading all its meshes, textures, and so on together)
 	- Renderer batching
 	- Scene graph
@@ -668,7 +669,43 @@ func (g *Game) Init() {
 	// Initial camera update
 	cam.Update()
 	updateAllProjViewMats(cam.ProjMat, cam.ViewMat)
+
+	// Ubos
+	// testUbos()
 }
+
+// func testUbos() {
+
+// 	ubo := buffers.NewUniformBuffer([]buffers.UniformBufferFieldInput{
+// 		{Id: 0, Type: buffers.DataTypeFloat32}, // 04 00
+// 		{Id: 1, Type: buffers.DataTypeVec3},    // 16 16
+// 		{Id: 2, Type: buffers.DataTypeFloat32}, // 04 32
+// 		{Id: 3, Type: buffers.DataTypeMat2},    // 32 48
+// 	}) // Total size: 48+32 = 80
+
+// 	println("!!!!!!!!!!!!! Id:", ubo.Id, "; Size:", ubo.Size)
+// 	fmt.Printf("%+v\n", ubo.Fields)
+
+// 	ubo.Bind()
+// 	ubo.SetFloat32(0, 99)
+// 	ubo.SetFloat32(2, 199)
+// 	ubo.SetVec3(1, &gglm.Vec3{Data: [3]float32{33, 33, 33}})
+
+// 	ubo.SetMat2(3, &gglm.Mat2{Data: [2][2]float32{{1, 3}, {2, 4}}})
+
+// 	var v gglm.Vec3
+// 	var m2 gglm.Mat2
+// 	var x, x2 float32
+// 	gl.GetBufferSubData(gl.UNIFORM_BUFFER, 0, 4, gl.Ptr(&x))
+// 	gl.GetBufferSubData(gl.UNIFORM_BUFFER, 32, 4, gl.Ptr(&x2))
+// 	gl.GetBufferSubData(gl.UNIFORM_BUFFER, 16, 12, gl.Ptr(&v.Data[0]))
+// 	gl.GetBufferSubData(gl.UNIFORM_BUFFER, 48, 16, gl.Ptr(&m2.Data[0][0]))
+
+// 	fmt.Printf("x=%f; x2=%f; v3=%s; m2=%s\n", x, x2, v.String(), m2.String())
+
+// 	ubo.SetVec3(1, &gglm.Vec3{Data: [3]float32{-123, 33, 33}})
+// 	gl.GetBufferSubData(gl.UNIFORM_BUFFER, 16, 12, gl.Ptr(&v.Data[0]))
+// }
 
 func (g *Game) initFbos() {
 
