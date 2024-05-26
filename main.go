@@ -739,19 +739,29 @@ func testUbos() {
 	// Ubo2
 	//
 	type TestUBO2 struct {
-		F32      float32
-		V3       gglm.Vec3
-		F32Slice []float32
-		I32      int32
-		I32Slice []int32
+		F32       float32
+		V3        gglm.Vec3
+		F32Slice  []float32
+		I32       int32
+		I32Slice  []int32
+		V3Slice   []gglm.Vec3
+		V4Slice   []gglm.Vec4
+		Mat2Slice []gglm.Mat2
+		Mat3Slice []gglm.Mat3
+		Mat4Slice []gglm.Mat4
 	}
 
 	s2 := TestUBO2{
-		F32:      1.5,
-		V3:       gglm.Vec3{Data: [3]float32{11, 22, 33}},
-		F32Slice: []float32{-1, -2, -3, -4},
-		I32:      55,
-		I32Slice: []int32{41, 42, 43, 44, 45},
+		F32:       1.5,
+		V3:        gglm.Vec3{Data: [3]float32{11, 22, 33}},
+		F32Slice:  []float32{-1, -2, -3, -4},
+		I32:       55,
+		I32Slice:  []int32{41, 42, 43},
+		V3Slice:   []gglm.Vec3{gglm.NewVec3(1.1, 1.2, 1.3), gglm.NewVec3(2.1, 2.2, 2.3)},
+		V4Slice:   []gglm.Vec4{gglm.NewVec4(1.1, 1.2, 1.3, 1.4), gglm.NewVec4(2.1, 2.2, 2.3, 2.4)},
+		Mat2Slice: []gglm.Mat2{gglm.NewMat2Diag(1.1), gglm.NewMat2Diag(2.1)},
+		Mat3Slice: []gglm.Mat3{gglm.NewMat3Diag(3.1), gglm.NewMat3Diag(4.1)},
+		Mat4Slice: []gglm.Mat4{gglm.NewMat4Diag(5.1), gglm.NewMat4Diag(6.1)},
 	}
 
 	ubo2 := buffers.NewUniformBuffer([]buffers.UniformBufferFieldInput{
@@ -759,21 +769,36 @@ func testUbos() {
 		{Id: 1, Type: buffers.DataTypeVec3},
 		{Id: 2, Type: buffers.DataTypeFloat32, Count: 4},
 		{Id: 3, Type: buffers.DataTypeInt32},
-		{Id: 4, Type: buffers.DataTypeInt32, Count: 5},
+		{Id: 4, Type: buffers.DataTypeInt32, Count: 3},
+		{Id: 5, Type: buffers.DataTypeVec3, Count: 2},
+		{Id: 6, Type: buffers.DataTypeVec4, Count: 2},
+		{Id: 7, Type: buffers.DataTypeMat2, Count: 2},
+		{Id: 8, Type: buffers.DataTypeMat3, Count: 2},
+		{Id: 9, Type: buffers.DataTypeMat4, Count: 2},
 	})
 
 	ubo2.SetStruct(s2)
 
 	var someInt32 int32
 	fArr := [4 * 4]float32{}
-	i32Arr := [5 * 4]int32{}
+	i32Arr := [3 * 4]int32{}
+	vec3Slice := [2 * 4]float32{}
+	vec4Slice := [2 * 4]float32{}
+	mat2Slice := [2 * 2 * 4]float32{}
+	mat3Slice := [2 * 3 * 4]float32{}
+	mat4Slice := [2 * 4 * 4]float32{}
 	gl.GetBufferSubData(gl.UNIFORM_BUFFER, 0, 4, gl.Ptr(&x))
 	gl.GetBufferSubData(gl.UNIFORM_BUFFER, 16, 12, gl.Ptr(&v.Data[0]))
 	gl.GetBufferSubData(gl.UNIFORM_BUFFER, 32, 16*4, gl.Ptr(&fArr[0]))
 	gl.GetBufferSubData(gl.UNIFORM_BUFFER, 32+16*4, 4, gl.Ptr(&someInt32))
-	gl.GetBufferSubData(gl.UNIFORM_BUFFER, 32+16*4+16, 16*5, gl.Ptr(&i32Arr[0]))
+	gl.GetBufferSubData(gl.UNIFORM_BUFFER, 32+16*4+16, 16*3, gl.Ptr(&i32Arr[0]))
+	gl.GetBufferSubData(gl.UNIFORM_BUFFER, 32+16*4+16+16*3, 16*2, gl.Ptr(&vec3Slice[0]))
+	gl.GetBufferSubData(gl.UNIFORM_BUFFER, 32+16*4+16+16*3+16*2, 16*2, gl.Ptr(&vec4Slice[0]))
+	gl.GetBufferSubData(gl.UNIFORM_BUFFER, 32+16*4+16+16*3+16*2+16*2, 2*16*2, gl.Ptr(&mat2Slice[0]))
+	gl.GetBufferSubData(gl.UNIFORM_BUFFER, 32+16*4+16+16*3+16*2+16*2+2*16*2, 2*16*3, gl.Ptr(&mat3Slice[0]))
+	gl.GetBufferSubData(gl.UNIFORM_BUFFER, 32+16*4+16+16*3+16*2+16*2+2*16*2+2*16*3, 2*16*4, gl.Ptr(&mat4Slice[0]))
 
-	fmt.Printf("f32=%f; v3=%s; f32Slice=%v; i32=%d; i32Arr=%v\n", x, v.String(), fArr, someInt32, i32Arr)
+	fmt.Printf("f32=%f; v3=%s; f32Slice=%v; i32=%d; i32Arr=%v; v3Slice=%v; v4Slice=%v; mat2Slice=%v; mat3Slice=%v; mat4Slice=%v\n", x, v.String(), fArr, someInt32, i32Arr, vec3Slice, vec4Slice, mat2Slice, mat3Slice, mat4Slice)
 }
 
 func (g *Game) initFbos() {

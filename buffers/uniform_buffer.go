@@ -85,8 +85,21 @@ func (ub *UniformBuffer) addFields(fields []UniformBufferFieldInput) (totalSize 
 		newField := UniformBufferField{Id: f.Id, Type: f.Type, AlignedOffset: alignedOffset, Count: f.Count}
 		ub.Fields = append(ub.Fields, newField)
 
-		// Prepare aligned offset for the next field
-		alignedOffset = newField.AlignedOffset + alignmentBoundary*f.Count
+		// Prepare aligned offset for the next field.
+		//
+		// Matrices are treated as an array of column vectors, where each column is a vec4,
+		// that's why we have a multiplier depending on how many columns we have when calculating
+		// the offset
+		multiplier := uint16(1)
+		if f.Type == DataTypeMat2 {
+			multiplier = 2
+		} else if f.Type == DataTypeMat3 {
+			multiplier = 3
+		} else if f.Type == DataTypeMat4 {
+			multiplier = 4
+		}
+
+		alignedOffset = newField.AlignedOffset + alignmentBoundary*f.Count*multiplier
 	}
 
 	return uint32(alignedOffset)
@@ -241,57 +254,95 @@ func (ub *UniformBuffer) SetStruct(inputStruct any) {
 
 		case DataTypeVec2:
 
-			v2, ok := valField.Interface().(gglm.Vec2)
-			typeMatches = ok
+			typeMatches = elementType.Name() == "Vec2"
 
 			if typeMatches {
-				WriteF32SliceToByteBuf(buf, &writeIndex, v2.Data[:])
+
+				if isArray {
+					WriteVec2SliceToByteBufWithAlignment(buf, &writeIndex, 16, valField.Slice(0, valField.Len()).Interface().([]gglm.Vec2))
+				} else {
+					v2 := valField.Interface().(gglm.Vec2)
+					WriteF32SliceToByteBuf(buf, &writeIndex, v2.Data[:])
+				}
 			}
 
 		case DataTypeVec3:
-			v3, ok := valField.Interface().(gglm.Vec3)
-			typeMatches = ok
+
+			typeMatches = elementType.Name() == "Vec3"
 
 			if typeMatches {
-				WriteF32SliceToByteBuf(buf, &writeIndex, v3.Data[:])
+
+				if isArray {
+					WriteVec3SliceToByteBufWithAlignment(buf, &writeIndex, 16, valField.Slice(0, valField.Len()).Interface().([]gglm.Vec3))
+				} else {
+					v3 := valField.Interface().(gglm.Vec3)
+					WriteF32SliceToByteBuf(buf, &writeIndex, v3.Data[:])
+				}
 			}
 
 		case DataTypeVec4:
-			v4, ok := valField.Interface().(gglm.Vec4)
-			typeMatches = ok
+
+			typeMatches = elementType.Name() == "Vec4"
 
 			if typeMatches {
-				WriteF32SliceToByteBuf(buf, &writeIndex, v4.Data[:])
+
+				if isArray {
+					WriteVec4SliceToByteBufWithAlignment(buf, &writeIndex, 16, valField.Slice(0, valField.Len()).Interface().([]gglm.Vec4))
+				} else {
+					v3 := valField.Interface().(gglm.Vec4)
+					WriteF32SliceToByteBuf(buf, &writeIndex, v3.Data[:])
+				}
 			}
 
 		case DataTypeMat2:
-			m2, ok := valField.Interface().(gglm.Mat2)
-			typeMatches = ok
+
+			typeMatches = elementType.Name() == "Mat2"
 
 			if typeMatches {
-				WriteF32SliceToByteBuf(buf, &writeIndex, m2.Data[0][:])
-				WriteF32SliceToByteBuf(buf, &writeIndex, m2.Data[1][:])
+
+				if isArray {
+					m2Arr := valField.Interface().([]gglm.Mat2)
+					WriteMat2SliceToByteBufWithAlignment(buf, &writeIndex, 16*2, m2Arr)
+				} else {
+					m := valField.Interface().(gglm.Mat2)
+					WriteF32SliceToByteBuf(buf, &writeIndex, m.Data[0][:])
+					WriteF32SliceToByteBuf(buf, &writeIndex, m.Data[1][:])
+				}
 			}
 
 		case DataTypeMat3:
-			m3, ok := valField.Interface().(gglm.Mat3)
-			typeMatches = ok
+
+			typeMatches = elementType.Name() == "Mat3"
 
 			if typeMatches {
-				WriteF32SliceToByteBuf(buf, &writeIndex, m3.Data[0][:])
-				WriteF32SliceToByteBuf(buf, &writeIndex, m3.Data[1][:])
-				WriteF32SliceToByteBuf(buf, &writeIndex, m3.Data[2][:])
+
+				if isArray {
+					m3Arr := valField.Interface().([]gglm.Mat3)
+					WriteMat3SliceToByteBufWithAlignment(buf, &writeIndex, 16*3, m3Arr)
+				} else {
+					m := valField.Interface().(gglm.Mat3)
+					WriteF32SliceToByteBuf(buf, &writeIndex, m.Data[0][:])
+					WriteF32SliceToByteBuf(buf, &writeIndex, m.Data[1][:])
+					WriteF32SliceToByteBuf(buf, &writeIndex, m.Data[2][:])
+				}
 			}
 
 		case DataTypeMat4:
-			m4, ok := valField.Interface().(gglm.Mat4)
-			typeMatches = ok
+
+			typeMatches = elementType.Name() == "Mat4"
 
 			if typeMatches {
-				WriteF32SliceToByteBuf(buf, &writeIndex, m4.Data[0][:])
-				WriteF32SliceToByteBuf(buf, &writeIndex, m4.Data[1][:])
-				WriteF32SliceToByteBuf(buf, &writeIndex, m4.Data[2][:])
-				WriteF32SliceToByteBuf(buf, &writeIndex, m4.Data[3][:])
+
+				if isArray {
+					m4Arr := valField.Interface().([]gglm.Mat4)
+					WriteMat4SliceToByteBufWithAlignment(buf, &writeIndex, 16*4, m4Arr)
+				} else {
+					m := valField.Interface().(gglm.Mat4)
+					WriteF32SliceToByteBuf(buf, &writeIndex, m.Data[0][:])
+					WriteF32SliceToByteBuf(buf, &writeIndex, m.Data[1][:])
+					WriteF32SliceToByteBuf(buf, &writeIndex, m.Data[2][:])
+					WriteF32SliceToByteBuf(buf, &writeIndex, m.Data[3][:])
+				}
 			}
 
 		default:
@@ -384,6 +435,156 @@ func WriteF32SliceToByteBufWithAlignment(buf []byte, startIndex *int, alignmentP
 		buf[*startIndex+3] = byte(bits >> 24)
 
 		*startIndex += alignmentPerField
+	}
+}
+
+func WriteVec2SliceToByteBufWithAlignment(buf []byte, startIndex *int, alignmentPerVector int, vals []gglm.Vec2) {
+
+	assert.T(*startIndex+len(vals)*alignmentPerVector <= len(buf), "failed to write slice of gglm.Vec2 with custom alignment=%d to buffer because the buffer doesn't have enough space. Start index=%d, Buffer length=%d, but needs %d bytes free", alignmentPerVector, *startIndex, len(buf), len(vals)*alignmentPerVector)
+
+	for i := 0; i < len(vals); i++ {
+
+		bitsX := math.Float32bits(vals[i].X())
+		bitsY := math.Float32bits(vals[i].Y())
+
+		buf[*startIndex] = byte(bitsX)
+		buf[*startIndex+1] = byte(bitsX >> 8)
+		buf[*startIndex+2] = byte(bitsX >> 16)
+		buf[*startIndex+3] = byte(bitsX >> 24)
+
+		buf[*startIndex+4] = byte(bitsY)
+		buf[*startIndex+5] = byte(bitsY >> 8)
+		buf[*startIndex+6] = byte(bitsY >> 16)
+		buf[*startIndex+7] = byte(bitsY >> 24)
+
+		*startIndex += alignmentPerVector
+	}
+}
+
+func WriteVec3SliceToByteBufWithAlignment(buf []byte, startIndex *int, alignmentPerVector int, vals []gglm.Vec3) {
+
+	assert.T(*startIndex+len(vals)*alignmentPerVector <= len(buf), "failed to write slice of gglm.Vec3 with custom alignment=%d to buffer because the buffer doesn't have enough space. Start index=%d, Buffer length=%d, but needs %d bytes free", alignmentPerVector, *startIndex, len(buf), len(vals)*alignmentPerVector)
+
+	for i := 0; i < len(vals); i++ {
+
+		bitsX := math.Float32bits(vals[i].X())
+		bitsY := math.Float32bits(vals[i].Y())
+		bitsZ := math.Float32bits(vals[i].Z())
+
+		buf[*startIndex] = byte(bitsX)
+		buf[*startIndex+1] = byte(bitsX >> 8)
+		buf[*startIndex+2] = byte(bitsX >> 16)
+		buf[*startIndex+3] = byte(bitsX >> 24)
+
+		buf[*startIndex+4] = byte(bitsY)
+		buf[*startIndex+5] = byte(bitsY >> 8)
+		buf[*startIndex+6] = byte(bitsY >> 16)
+		buf[*startIndex+7] = byte(bitsY >> 24)
+
+		buf[*startIndex+8] = byte(bitsZ)
+		buf[*startIndex+9] = byte(bitsZ >> 8)
+		buf[*startIndex+10] = byte(bitsZ >> 16)
+		buf[*startIndex+11] = byte(bitsZ >> 24)
+
+		*startIndex += alignmentPerVector
+	}
+}
+
+func WriteVec4SliceToByteBufWithAlignment(buf []byte, startIndex *int, alignmentPerVector int, vals []gglm.Vec4) {
+
+	assert.T(*startIndex+len(vals)*alignmentPerVector <= len(buf), "failed to write slice of gglm.Vec4 with custom alignment=%d to buffer because the buffer doesn't have enough space. Start index=%d, Buffer length=%d, but needs %d bytes free", alignmentPerVector, *startIndex, len(buf), len(vals)*alignmentPerVector)
+
+	for i := 0; i < len(vals); i++ {
+
+		bitsX := math.Float32bits(vals[i].X())
+		bitsY := math.Float32bits(vals[i].Y())
+		bitsZ := math.Float32bits(vals[i].Z())
+		bitsW := math.Float32bits(vals[i].W())
+
+		buf[*startIndex] = byte(bitsX)
+		buf[*startIndex+1] = byte(bitsX >> 8)
+		buf[*startIndex+2] = byte(bitsX >> 16)
+		buf[*startIndex+3] = byte(bitsX >> 24)
+
+		buf[*startIndex+4] = byte(bitsY)
+		buf[*startIndex+5] = byte(bitsY >> 8)
+		buf[*startIndex+6] = byte(bitsY >> 16)
+		buf[*startIndex+7] = byte(bitsY >> 24)
+
+		buf[*startIndex+8] = byte(bitsZ)
+		buf[*startIndex+9] = byte(bitsZ >> 8)
+		buf[*startIndex+10] = byte(bitsZ >> 16)
+		buf[*startIndex+11] = byte(bitsZ >> 24)
+
+		buf[*startIndex+12] = byte(bitsW)
+		buf[*startIndex+13] = byte(bitsW >> 8)
+		buf[*startIndex+14] = byte(bitsW >> 16)
+		buf[*startIndex+15] = byte(bitsW >> 24)
+
+		*startIndex += alignmentPerVector
+	}
+}
+
+func WriteMat2SliceToByteBufWithAlignment(buf []byte, startIndex *int, alignmentPerMatrix int, vals []gglm.Mat2) {
+
+	assert.T(*startIndex+len(vals)*alignmentPerMatrix <= len(buf), "failed to write slice of gglm.Mat2 with custom alignment=%d to buffer because the buffer doesn't have enough space. Start index=%d, Buffer length=%d, but needs %d bytes free", alignmentPerMatrix, *startIndex, len(buf), len(vals)*alignmentPerMatrix)
+
+	for i := 0; i < len(vals); i++ {
+
+		m := &vals[i]
+
+		WriteVec2SliceToByteBufWithAlignment(
+			buf,
+			startIndex,
+			16,
+			[]gglm.Vec2{
+				{Data: m.Data[0]},
+				{Data: m.Data[1]},
+			},
+		)
+	}
+}
+
+func WriteMat3SliceToByteBufWithAlignment(buf []byte, startIndex *int, alignmentPerMatrix int, vals []gglm.Mat3) {
+
+	assert.T(*startIndex+len(vals)*alignmentPerMatrix <= len(buf), "failed to write slice of gglm.Mat3 with custom alignment=%d to buffer because the buffer doesn't have enough space. Start index=%d, Buffer length=%d, but needs %d bytes free", alignmentPerMatrix, *startIndex, len(buf), len(vals)*alignmentPerMatrix)
+
+	for i := 0; i < len(vals); i++ {
+
+		m := &vals[i]
+
+		WriteVec3SliceToByteBufWithAlignment(
+			buf,
+			startIndex,
+			16,
+			[]gglm.Vec3{
+				{Data: m.Data[0]},
+				{Data: m.Data[1]},
+				{Data: m.Data[2]},
+			},
+		)
+	}
+}
+
+func WriteMat4SliceToByteBufWithAlignment(buf []byte, startIndex *int, alignmentPerMatrix int, vals []gglm.Mat4) {
+
+	assert.T(*startIndex+len(vals)*alignmentPerMatrix <= len(buf), "failed to write slice of gglm.Mat2 with custom alignment=%d to buffer because the buffer doesn't have enough space. Start index=%d, Buffer length=%d, but needs %d bytes free", alignmentPerMatrix, *startIndex, len(buf), len(vals)*alignmentPerMatrix)
+
+	for i := 0; i < len(vals); i++ {
+
+		m := &vals[i]
+
+		WriteVec4SliceToByteBufWithAlignment(
+			buf,
+			startIndex,
+			16,
+			[]gglm.Vec4{
+				{Data: m.Data[0]},
+				{Data: m.Data[1]},
+				{Data: m.Data[2]},
+				{Data: m.Data[3]},
+			},
+		)
 	}
 }
 
