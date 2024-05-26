@@ -1,6 +1,9 @@
 package buffers
 
 import (
+	"math"
+	"reflect"
+
 	"github.com/bloeys/gglm/gglm"
 	"github.com/bloeys/nmage/assert"
 	"github.com/bloeys/nmage/logging"
@@ -139,6 +142,217 @@ func (ub *UniformBuffer) SetMat3(fieldId uint16, val *gglm.Mat3) {
 func (ub *UniformBuffer) SetMat4(fieldId uint16, val *gglm.Mat4) {
 	f := ub.getField(fieldId, DataTypeMat4)
 	gl.BufferSubData(gl.UNIFORM_BUFFER, int(f.AlignedOffset), 4*16, gl.Ptr(&val.Data[0][0]))
+}
+
+func (ub *UniformBuffer) SetStruct(inputStruct any) {
+
+	if inputStruct == nil {
+		logging.ErrLog.Panicf("UniformBuffer.SetStruct called with a value that is nil")
+	}
+
+	structVal := reflect.ValueOf(inputStruct)
+	if structVal.Kind() != reflect.Struct {
+		logging.ErrLog.Panicf("UniformBuffer.SetStruct called with a value that is not a struct. Val=%v\n", inputStruct)
+	}
+
+	if structVal.NumField() != len(ub.Fields) {
+		logging.ErrLog.Panicf("struct fields must match uniform buffer fields, but uniform buffer contains %d fields, while the passed struct has %d fields\n", len(ub.Fields), structVal.NumField())
+	}
+
+	writeIndex := 0
+	buf := make([]byte, ub.Size)
+	for i := 0; i < len(ub.Fields); i++ {
+
+		ubField := &ub.Fields[i]
+		valField := structVal.Field(i)
+
+		if valField.Kind() == reflect.Pointer {
+			valField = valField.Elem()
+		}
+
+		typeMatches := false
+		writeIndex = int(ubField.AlignedOffset)
+
+		switch ubField.Type {
+
+		case DataTypeUint32:
+			t := valField.Type()
+			typeMatches = t.Name() == "uint32"
+
+			if typeMatches {
+				Write32BitIntegerToByteBuf(buf, &writeIndex, uint32(valField.Uint()))
+			}
+
+		case DataTypeFloat32:
+			t := valField.Type()
+			typeMatches = t.Name() == "float32"
+
+			if typeMatches {
+				WriteF32ToByteBuf(buf, &writeIndex, float32(valField.Float()))
+			}
+
+		case DataTypeInt32:
+			t := valField.Type()
+			typeMatches = t.Name() == "int32"
+
+			if typeMatches {
+				Write32BitIntegerToByteBuf(buf, &writeIndex, uint32(valField.Int()))
+			}
+
+		case DataTypeVec2:
+
+			v2, ok := valField.Interface().(gglm.Vec2)
+			typeMatches = ok
+
+			if typeMatches {
+				WriteF32SliceToByteBuf(buf, &writeIndex, v2.Data[:])
+			}
+
+		case DataTypeVec3:
+			v3, ok := valField.Interface().(gglm.Vec3)
+			typeMatches = ok
+
+			if typeMatches {
+				WriteF32SliceToByteBuf(buf, &writeIndex, v3.Data[:])
+			}
+
+		case DataTypeVec4:
+			v4, ok := valField.Interface().(gglm.Vec4)
+			typeMatches = ok
+
+			if typeMatches {
+				WriteF32SliceToByteBuf(buf, &writeIndex, v4.Data[:])
+			}
+
+		case DataTypeMat2:
+			m2, ok := valField.Interface().(gglm.Mat2)
+			typeMatches = ok
+
+			if typeMatches {
+				WriteF32SliceToByteBuf(buf, &writeIndex, m2.Data[0][:])
+				WriteF32SliceToByteBuf(buf, &writeIndex, m2.Data[1][:])
+			}
+
+		case DataTypeMat3:
+			m3, ok := valField.Interface().(gglm.Mat3)
+			typeMatches = ok
+
+			if typeMatches {
+				WriteF32SliceToByteBuf(buf, &writeIndex, m3.Data[0][:])
+				WriteF32SliceToByteBuf(buf, &writeIndex, m3.Data[1][:])
+				WriteF32SliceToByteBuf(buf, &writeIndex, m3.Data[2][:])
+			}
+
+		case DataTypeMat4:
+			m4, ok := valField.Interface().(gglm.Mat4)
+			typeMatches = ok
+
+			if typeMatches {
+				WriteF32SliceToByteBuf(buf, &writeIndex, m4.Data[0][:])
+				WriteF32SliceToByteBuf(buf, &writeIndex, m4.Data[1][:])
+				WriteF32SliceToByteBuf(buf, &writeIndex, m4.Data[2][:])
+				WriteF32SliceToByteBuf(buf, &writeIndex, m4.Data[3][:])
+			}
+
+		default:
+			assert.T(false, "Unknown uniform buffer data type passed. DataType '%d'", ubField.Type)
+		}
+
+		if !typeMatches {
+			logging.ErrLog.Panicf("Struct field ordering and types must match uniform buffer fields, but at field index %d got UniformBufferField=%v but a struct field of %s\n", i, ubField, valField.String())
+		}
+	}
+
+	if writeIndex == 0 {
+		return
+	}
+
+	gl.BufferSubData(gl.UNIFORM_BUFFER, 0, writeIndex, gl.Ptr(&buf[0]))
+}
+
+func Write32BitIntegerToByteBuf[T uint32 | int32](buf []byte, startIndex *int, val T) {
+
+	assert.T(*startIndex+4 <= len(buf), "failed to write uint32/int32 to buffer because the buffer doesn't have enough space. Start index=%d, Buffer length=%d", *startIndex, len(buf))
+
+	buf[*startIndex] = byte(val)
+	buf[*startIndex+1] = byte(val >> 8)
+	buf[*startIndex+2] = byte(val >> 16)
+	buf[*startIndex+3] = byte(val >> 24)
+
+	*startIndex += 4
+}
+
+func WriteF32ToByteBuf(buf []byte, startIndex *int, val float32) {
+
+	assert.T(*startIndex+4 <= len(buf), "failed to write float32 to buffer because the buffer doesn't have enough space. Start index=%d, Buffer length=%d", *startIndex, len(buf))
+
+	bits := math.Float32bits(val)
+
+	buf[*startIndex] = byte(bits)
+	buf[*startIndex+1] = byte(bits >> 8)
+	buf[*startIndex+2] = byte(bits >> 16)
+	buf[*startIndex+3] = byte(bits >> 24)
+
+	*startIndex += 4
+}
+
+func WriteF32SliceToByteBuf(buf []byte, startIndex *int, vals []float32) {
+
+	assert.T(*startIndex+4 <= len(buf), "failed to write slice of float32 to buffer because the buffer doesn't have enough space. Start index=%d, Buffer length=%d, but needs %d bytes free", *startIndex, len(buf), len(vals)*4)
+
+	for i := 0; i < len(vals); i++ {
+
+		bits := math.Float32bits(vals[i])
+
+		buf[*startIndex] = byte(bits)
+		buf[*startIndex+1] = byte(bits >> 8)
+		buf[*startIndex+2] = byte(bits >> 16)
+		buf[*startIndex+3] = byte(bits >> 24)
+
+		*startIndex += 4
+	}
+}
+
+func ReflectValueMatchesUniformBufferField(v reflect.Value, ubField *UniformBufferField) bool {
+
+	if v.Kind() == reflect.Pointer {
+		v = v.Elem()
+	}
+
+	switch ubField.Type {
+
+	case DataTypeUint32:
+		t := v.Type()
+		return t.Name() == "uint32"
+	case DataTypeFloat32:
+		t := v.Type()
+		return t.Name() == "float32"
+	case DataTypeInt32:
+		t := v.Type()
+		return t.Name() == "int32"
+	case DataTypeVec2:
+		_, ok := v.Interface().(gglm.Vec2)
+		return ok
+	case DataTypeVec3:
+		_, ok := v.Interface().(gglm.Vec3)
+		return ok
+	case DataTypeVec4:
+		_, ok := v.Interface().(gglm.Vec4)
+		return ok
+	case DataTypeMat2:
+		_, ok := v.Interface().(gglm.Mat2)
+		return ok
+	case DataTypeMat3:
+		_, ok := v.Interface().(gglm.Mat3)
+		return ok
+	case DataTypeMat4:
+		_, ok := v.Interface().(gglm.Mat4)
+		return ok
+
+	default:
+		assert.T(false, "Unknown uniform buffer data type passed. DataType '%d'", ubField.Type)
+		return false
+	}
 }
 
 func NewUniformBuffer(fields []UniformBufferFieldInput) UniformBuffer {

@@ -671,41 +671,64 @@ func (g *Game) Init() {
 	updateAllProjViewMats(cam.ProjMat, cam.ViewMat)
 
 	// Ubos
-	// testUbos()
+	testUbos()
 }
 
-// func testUbos() {
+func testUbos() {
 
-// 	ubo := buffers.NewUniformBuffer([]buffers.UniformBufferFieldInput{
-// 		{Id: 0, Type: buffers.DataTypeFloat32}, // 04 00
-// 		{Id: 1, Type: buffers.DataTypeVec3},    // 16 16
-// 		{Id: 2, Type: buffers.DataTypeFloat32}, // 04 32
-// 		{Id: 3, Type: buffers.DataTypeMat2},    // 32 48
-// 	}) // Total size: 48+32 = 80
+	ubo := buffers.NewUniformBuffer([]buffers.UniformBufferFieldInput{
+		{Id: 0, Type: buffers.DataTypeFloat32}, // 04 00
+		{Id: 1, Type: buffers.DataTypeVec3},    // 16 16
+		{Id: 2, Type: buffers.DataTypeFloat32}, // 04 32
+		{Id: 3, Type: buffers.DataTypeMat2},    // 32 48
+	}) // Total size: 48+32 = 80
 
-// 	println("!!!!!!!!!!!!! Id:", ubo.Id, "; Size:", ubo.Size)
-// 	fmt.Printf("%+v\n", ubo.Fields)
+	println("!!!!!!!!!!!!! Id:", ubo.Id, "; Size:", ubo.Size)
+	fmt.Printf("%+v\n", ubo.Fields)
 
-// 	ubo.Bind()
-// 	ubo.SetFloat32(0, 99)
-// 	ubo.SetFloat32(2, 199)
-// 	ubo.SetVec3(1, &gglm.Vec3{Data: [3]float32{33, 33, 33}})
+	ubo.Bind()
+	ubo.SetFloat32(0, 99)
+	ubo.SetFloat32(2, 199)
+	ubo.SetVec3(1, &gglm.Vec3{Data: [3]float32{33, 33, 33}})
 
-// 	ubo.SetMat2(3, &gglm.Mat2{Data: [2][2]float32{{1, 3}, {2, 4}}})
+	ubo.SetMat2(3, &gglm.Mat2{Data: [2][2]float32{{1, 3}, {2, 4}}})
 
-// 	var v gglm.Vec3
-// 	var m2 gglm.Mat2
-// 	var x, x2 float32
-// 	gl.GetBufferSubData(gl.UNIFORM_BUFFER, 0, 4, gl.Ptr(&x))
-// 	gl.GetBufferSubData(gl.UNIFORM_BUFFER, 32, 4, gl.Ptr(&x2))
-// 	gl.GetBufferSubData(gl.UNIFORM_BUFFER, 16, 12, gl.Ptr(&v.Data[0]))
-// 	gl.GetBufferSubData(gl.UNIFORM_BUFFER, 48, 16, gl.Ptr(&m2.Data[0][0]))
+	var v gglm.Vec3
+	var m2 gglm.Mat2
+	var x, x2 float32
+	gl.GetBufferSubData(gl.UNIFORM_BUFFER, 0, 4, gl.Ptr(&x))
+	gl.GetBufferSubData(gl.UNIFORM_BUFFER, 32, 4, gl.Ptr(&x2))
+	gl.GetBufferSubData(gl.UNIFORM_BUFFER, 16, 12, gl.Ptr(&v.Data[0]))
+	gl.GetBufferSubData(gl.UNIFORM_BUFFER, 48, 16, gl.Ptr(&m2.Data[0][0]))
 
-// 	fmt.Printf("x=%f; x2=%f; v3=%s; m2=%s\n", x, x2, v.String(), m2.String())
+	fmt.Printf("x=%f; x2=%f; v3=%s; m2=%s\n", x, x2, v.String(), m2.String())
 
-// 	ubo.SetVec3(1, &gglm.Vec3{Data: [3]float32{-123, 33, 33}})
-// 	gl.GetBufferSubData(gl.UNIFORM_BUFFER, 16, 12, gl.Ptr(&v.Data[0]))
-// }
+	ubo.SetVec3(1, &gglm.Vec3{Data: [3]float32{-123, 33, 33}})
+	gl.GetBufferSubData(gl.UNIFORM_BUFFER, 16, 12, gl.Ptr(&v.Data[0]))
+
+	type TestUBO struct {
+		FirstF32  float32
+		V3        gglm.Vec3
+		SecondF32 float32
+		M2        gglm.Mat2
+	}
+
+	s := TestUBO{
+		FirstF32:  1.5,
+		V3:        gglm.Vec3{Data: [3]float32{11, 22, 33}},
+		SecondF32: 9.5,
+		M2:        gglm.Mat2{Data: [2][2]float32{{6, 8}, {7, 9}}},
+	}
+
+	ubo.SetStruct(s)
+
+	gl.GetBufferSubData(gl.UNIFORM_BUFFER, 0, 4, gl.Ptr(&x))
+	gl.GetBufferSubData(gl.UNIFORM_BUFFER, 32, 4, gl.Ptr(&x2))
+	gl.GetBufferSubData(gl.UNIFORM_BUFFER, 16, 12, gl.Ptr(&v.Data[0]))
+	gl.GetBufferSubData(gl.UNIFORM_BUFFER, 48, 16, gl.Ptr(&m2.Data[0][0]))
+
+	fmt.Printf("x=%f; x2=%f; v3=%s; m2=%s\n", x, x2, v.String(), m2.String())
+}
 
 func (g *Game) initFbos() {
 
