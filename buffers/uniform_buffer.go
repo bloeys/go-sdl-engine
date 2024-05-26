@@ -13,12 +13,18 @@ import (
 type UniformBufferFieldInput struct {
 	Id   uint16
 	Type ElementType
+	// Count should be set in case this field is an array of type `[Count]Type`.
+	// Count=0 is valid and is equivalent to Count=1, which means the type is NOT an array, but a single field.
+	Count uint16
 }
 
 type UniformBufferField struct {
 	Id            uint16
 	AlignedOffset uint16
-	Type          ElementType
+	// Count should be set in case this field is an array of type `[Count]Type`.
+	// Count=0 is valid and is equivalent to Count=1, which means the type is NOT an array, but a single field.
+	Count uint16
+	Type  ElementType
 }
 
 type UniformBuffer struct {
@@ -49,6 +55,9 @@ func (ub *UniformBuffer) addFields(fields []UniformBufferFieldInput) (totalSize 
 	for i := 0; i < len(fields); i++ {
 
 		f := fields[i]
+		if f.Count == 0 {
+			f.Count = 1
+		}
 
 		existingFieldType, ok := fieldIdToTypeMap[f.Id]
 		assert.T(!ok, "Uniform buffer field id is reused within the same uniform buffer. FieldId=%d was first used on a field with type=%s and then used on a different field with type=%s\n", f.Id, existingFieldType.String(), f.Type.String())
@@ -61,17 +70,23 @@ func (ub *UniformBuffer) addFields(fields []UniformBufferFieldInput) (totalSize 
 		//
 		// To get the nearest boundary larger than the offset we can:
 		// offset + (boundary - alignErr) == 100 + (16 - 4) == 112; 112 % 16 == 0, meaning its a boundary
-		alignmentBoundary := f.Type.GlStd140AlignmentBoundary()
+		//
+		// Note that arrays of scalars/vectors are always aligned to 16 bytes, like a vec4
+		var alignmentBoundary uint16 = 16
+		if f.Count == 1 {
+			alignmentBoundary = f.Type.GlStd140AlignmentBoundary()
+		}
+
 		alignmentError := alignedOffset % alignmentBoundary
 		if alignmentError != 0 {
 			alignedOffset += alignmentBoundary - alignmentError
 		}
 
-		newField := UniformBufferField{Id: f.Id, Type: f.Type, AlignedOffset: alignedOffset}
+		newField := UniformBufferField{Id: f.Id, Type: f.Type, AlignedOffset: alignedOffset, Count: f.Count}
 		ub.Fields = append(ub.Fields, newField)
 
 		// Prepare aligned offset for the next field
-		alignedOffset = newField.AlignedOffset + uint16(f.Type.GlStd140BaseAlignment())
+		alignedOffset = newField.AlignedOffset + alignmentBoundary*f.Count
 	}
 
 	return uint32(alignedOffset)
@@ -166,8 +181,21 @@ func (ub *UniformBuffer) SetStruct(inputStruct any) {
 		ubField := &ub.Fields[i]
 		valField := structVal.Field(i)
 
-		if valField.Kind() == reflect.Pointer {
+		kind := valField.Kind()
+		if kind == reflect.Pointer {
 			valField = valField.Elem()
+		}
+
+		var elementType reflect.Type
+		isArray := kind == reflect.Slice || kind == reflect.Array
+		if isArray {
+			elementType = valField.Type().Elem()
+		} else {
+			elementType = valField.Type()
+		}
+
+		if isArray {
+			assert.T(valField.Len() == int(ubField.Count), "ubo field of id=%d is an array/slice field of length=%d but got input of length=%d\n", ubField.Id, ubField.Count, valField.Len())
 		}
 
 		typeMatches := false
@@ -176,27 +204,39 @@ func (ub *UniformBuffer) SetStruct(inputStruct any) {
 		switch ubField.Type {
 
 		case DataTypeUint32:
-			t := valField.Type()
-			typeMatches = t.Name() == "uint32"
 
+			typeMatches = elementType.Name() == "uint32"
 			if typeMatches {
-				Write32BitIntegerToByteBuf(buf, &writeIndex, uint32(valField.Uint()))
+
+				if isArray {
+					Write32BitIntegerSliceToByteBufWithAlignment(buf, &writeIndex, 16, valField.Slice(0, valField.Len()).Interface().([]uint32))
+				} else {
+					Write32BitIntegerToByteBuf(buf, &writeIndex, uint32(valField.Uint()))
+				}
 			}
 
 		case DataTypeFloat32:
-			t := valField.Type()
-			typeMatches = t.Name() == "float32"
 
+			typeMatches = elementType.Name() == "float32"
 			if typeMatches {
-				WriteF32ToByteBuf(buf, &writeIndex, float32(valField.Float()))
+
+				if isArray {
+					WriteF32SliceToByteBufWithAlignment(buf, &writeIndex, 16, valField.Slice(0, valField.Len()).Interface().([]float32))
+				} else {
+					WriteF32ToByteBuf(buf, &writeIndex, float32(valField.Float()))
+				}
 			}
 
 		case DataTypeInt32:
-			t := valField.Type()
-			typeMatches = t.Name() == "int32"
 
+			typeMatches = elementType.Name() == "int32"
 			if typeMatches {
-				Write32BitIntegerToByteBuf(buf, &writeIndex, uint32(valField.Int()))
+
+				if isArray {
+					Write32BitIntegerSliceToByteBufWithAlignment(buf, &writeIndex, 16, valField.Slice(0, valField.Len()).Interface().([]int32))
+				} else {
+					Write32BitIntegerToByteBuf(buf, &writeIndex, uint32(valField.Int()))
+				}
 			}
 
 		case DataTypeVec2:
@@ -282,6 +322,23 @@ func Write32BitIntegerToByteBuf[T uint32 | int32](buf []byte, startIndex *int, v
 	*startIndex += 4
 }
 
+func Write32BitIntegerSliceToByteBufWithAlignment[T uint32 | int32](buf []byte, startIndex *int, alignmentPerField int, vals []T) {
+
+	assert.T(*startIndex+len(vals)*alignmentPerField <= len(buf), "failed to write uint32/int32 with custom alignment=%d to buffer because the buffer doesn't have enough space. Start index=%d, Buffer length=%d, but needs %d bytes free", alignmentPerField, *startIndex, len(buf), len(vals)*alignmentPerField)
+
+	for i := 0; i < len(vals); i++ {
+
+		val := vals[i]
+
+		buf[*startIndex] = byte(val)
+		buf[*startIndex+1] = byte(val >> 8)
+		buf[*startIndex+2] = byte(val >> 16)
+		buf[*startIndex+3] = byte(val >> 24)
+
+		*startIndex += alignmentPerField
+	}
+}
+
 func WriteF32ToByteBuf(buf []byte, startIndex *int, val float32) {
 
 	assert.T(*startIndex+4 <= len(buf), "failed to write float32 to buffer because the buffer doesn't have enough space. Start index=%d, Buffer length=%d", *startIndex, len(buf))
@@ -298,7 +355,7 @@ func WriteF32ToByteBuf(buf []byte, startIndex *int, val float32) {
 
 func WriteF32SliceToByteBuf(buf []byte, startIndex *int, vals []float32) {
 
-	assert.T(*startIndex+4 <= len(buf), "failed to write slice of float32 to buffer because the buffer doesn't have enough space. Start index=%d, Buffer length=%d, but needs %d bytes free", *startIndex, len(buf), len(vals)*4)
+	assert.T(*startIndex+len(vals)*4 <= len(buf), "failed to write slice of float32 to buffer because the buffer doesn't have enough space. Start index=%d, Buffer length=%d, but needs %d bytes free", *startIndex, len(buf), len(vals)*4)
 
 	for i := 0; i < len(vals); i++ {
 
@@ -310,6 +367,23 @@ func WriteF32SliceToByteBuf(buf []byte, startIndex *int, vals []float32) {
 		buf[*startIndex+3] = byte(bits >> 24)
 
 		*startIndex += 4
+	}
+}
+
+func WriteF32SliceToByteBufWithAlignment(buf []byte, startIndex *int, alignmentPerField int, vals []float32) {
+
+	assert.T(*startIndex+len(vals)*alignmentPerField <= len(buf), "failed to write slice of float32 with custom alignment=%d to buffer because the buffer doesn't have enough space. Start index=%d, Buffer length=%d, but needs %d bytes free", alignmentPerField, *startIndex, len(buf), len(vals)*alignmentPerField)
+
+	for i := 0; i < len(vals); i++ {
+
+		bits := math.Float32bits(vals[i])
+
+		buf[*startIndex] = byte(bits)
+		buf[*startIndex+1] = byte(bits >> 8)
+		buf[*startIndex+2] = byte(bits >> 16)
+		buf[*startIndex+3] = byte(bits >> 24)
+
+		*startIndex += alignmentPerField
 	}
 }
 

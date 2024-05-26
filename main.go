@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"reflect"
 	"runtime"
 	"runtime/pprof"
 	"strconv"
@@ -676,6 +677,11 @@ func (g *Game) Init() {
 
 func testUbos() {
 
+	xx := []int{1, 2, 3, 4}
+	xx2 := [4]int{1, 2, 3, 4}
+	fmt.Printf("XX: %v; Kind: %v; Elem Type: %v\n", reflect.ValueOf(xx), reflect.ValueOf(xx).Type().Kind(), reflect.ValueOf(xx).Type().Elem().Kind())
+	fmt.Printf("XX: %v; Kind: %v; Elem Type: %v\n", reflect.ValueOf(xx2), reflect.ValueOf(xx).Kind(), reflect.ValueOf(xx).Type().Elem().Kind())
+
 	ubo := buffers.NewUniformBuffer([]buffers.UniformBufferFieldInput{
 		{Id: 0, Type: buffers.DataTypeFloat32}, // 04 00
 		{Id: 1, Type: buffers.DataTypeVec3},    // 16 16
@@ -728,6 +734,46 @@ func testUbos() {
 	gl.GetBufferSubData(gl.UNIFORM_BUFFER, 48, 16, gl.Ptr(&m2.Data[0][0]))
 
 	fmt.Printf("x=%f; x2=%f; v3=%s; m2=%s\n", x, x2, v.String(), m2.String())
+
+	//
+	// Ubo2
+	//
+	type TestUBO2 struct {
+		F32      float32
+		V3       gglm.Vec3
+		F32Slice []float32
+		I32      int32
+		I32Slice []int32
+	}
+
+	s2 := TestUBO2{
+		F32:      1.5,
+		V3:       gglm.Vec3{Data: [3]float32{11, 22, 33}},
+		F32Slice: []float32{-1, -2, -3, -4},
+		I32:      55,
+		I32Slice: []int32{41, 42, 43, 44, 45},
+	}
+
+	ubo2 := buffers.NewUniformBuffer([]buffers.UniformBufferFieldInput{
+		{Id: 0, Type: buffers.DataTypeFloat32},
+		{Id: 1, Type: buffers.DataTypeVec3},
+		{Id: 2, Type: buffers.DataTypeFloat32, Count: 4},
+		{Id: 3, Type: buffers.DataTypeInt32},
+		{Id: 4, Type: buffers.DataTypeInt32, Count: 5},
+	})
+
+	ubo2.SetStruct(s2)
+
+	var someInt32 int32
+	fArr := [4 * 4]float32{}
+	i32Arr := [5 * 4]int32{}
+	gl.GetBufferSubData(gl.UNIFORM_BUFFER, 0, 4, gl.Ptr(&x))
+	gl.GetBufferSubData(gl.UNIFORM_BUFFER, 16, 12, gl.Ptr(&v.Data[0]))
+	gl.GetBufferSubData(gl.UNIFORM_BUFFER, 32, 16*4, gl.Ptr(&fArr[0]))
+	gl.GetBufferSubData(gl.UNIFORM_BUFFER, 32+16*4, 4, gl.Ptr(&someInt32))
+	gl.GetBufferSubData(gl.UNIFORM_BUFFER, 32+16*4+16, 16*5, gl.Ptr(&i32Arr[0]))
+
+	fmt.Printf("f32=%f; v3=%s; f32Slice=%v; i32=%d; i32Arr=%v\n", x, v.String(), fArr, someInt32, i32Arr)
 }
 
 func (g *Game) initFbos() {
