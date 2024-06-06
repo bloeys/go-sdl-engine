@@ -799,6 +799,50 @@ func testUbos() {
 	gl.GetBufferSubData(gl.UNIFORM_BUFFER, 32+16*4+16+16*3+16*2+16*2+2*16*2+2*16*3, 2*16*4, gl.Ptr(&mat4Slice[0]))
 
 	fmt.Printf("f32=%f; v3=%s; f32Slice=%v; i32=%d; i32Arr=%v; v3Slice=%v; v4Slice=%v; mat2Slice=%v; mat3Slice=%v; mat4Slice=%v\n", x, v.String(), fArr, someInt32, i32Arr, vec3Slice, vec4Slice, mat2Slice, mat3Slice, mat4Slice)
+
+	//
+	// Ubo3
+	//
+	type TestUBO3_1 struct {
+		F32 float32
+		V3  gglm.Vec3
+	}
+
+	type TestUBO3_2 struct {
+		F32 float32
+		S   TestUBO3_1
+	}
+
+	ubo3 := buffers.NewUniformBuffer([]buffers.UniformBufferFieldInput{
+		{Id: 0, Type: buffers.DataTypeFloat32}, // 04 00
+		{Id: 1, Type: buffers.DataTypeStruct, Subfields: []buffers.UniformBufferFieldInput{ // 00 16
+			{Id: 2, Type: buffers.DataTypeFloat32}, // 04 20
+			{Id: 3, Type: buffers.DataTypeVec3},    // 16 32
+		}}, // 32+16 = 48
+	})
+
+	fmt.Printf("\n==UBO3==\nSize=%d\nFields: %+v", ubo3.Size, ubo3.Fields)
+
+	ubo3.SetFloat32(0, 11)
+	ubo3.SetFloat32(2, 22)
+	ubo3.SetVec3(3, &gglm.Vec3{Data: [3]float32{33, 44, 55}})
+
+	// Bind the uniform block and the vertex buffer both to binding slot 2
+	gl.BindBufferBase(gl.UNIFORM_BUFFER, 2, ubo3.Id)
+
+	name := "Test2\x00"
+	uniformBlockIndex := gl.GetUniformBlockIndex(groundMat.ShaderProg.Id, gl.Str(name))
+	gl.UniformBlockBinding(groundMat.ShaderProg.Id, uniformBlockIndex, 2)
+
+	// s3 := TestUBO3_2{
+	// 	F32: 76.1,
+	// 	S: TestUBO3_1{
+	// 		F32: 89.9,
+	// 		V3:  gglm.NewVec3(7.1, 7.2, 7.3),
+	// 	},
+	// }
+
+	// ubo3.SetStruct(s3)
 }
 
 func (g *Game) initFbos() {

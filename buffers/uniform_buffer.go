@@ -16,6 +16,10 @@ type UniformBufferFieldInput struct {
 	// Count should be set in case this field is an array of type `[Count]Type`.
 	// Count=0 is valid and is equivalent to Count=1, which means the type is NOT an array, but a single field.
 	Count uint16
+
+	// Subfields is used when type is a struct, in which case it holds the fields of the struct.
+	// Ids do not have to be unique across structs.
+	Subfields []UniformBufferFieldInput
 }
 
 type UniformBufferField struct {
@@ -25,6 +29,10 @@ type UniformBufferField struct {
 	// Count=0 is valid and is equivalent to Count=1, which means the type is NOT an array, but a single field.
 	Count uint16
 	Type  ElementType
+
+	// Subfields is used when type is a struct, in which case it holds the fields of the struct.
+	// Ids do not have to be unique across structs.
+	Subfields []UniformBufferField
 }
 
 type UniformBuffer struct {
@@ -42,19 +50,23 @@ func (ub *UniformBuffer) UnBind() {
 	gl.BindBuffer(gl.UNIFORM_BUFFER, 0)
 }
 
-func (ub *UniformBuffer) addFields(fields []UniformBufferFieldInput) (totalSize uint32) {
+func addUniformBufferFieldsToArray(startAlignedOffset uint16, arrayToAddTo *[]UniformBufferField, fieldsToAdd []UniformBufferFieldInput) (totalSize uint32) {
 
-	if len(fields) == 0 {
+	if len(fieldsToAdd) == 0 {
 		return 0
 	}
 
+	// This function is recursive so only size the array once
+	if cap(*arrayToAddTo) == 0 {
+		*arrayToAddTo = make([]UniformBufferField, 0, len(fieldsToAdd))
+	}
+
 	var alignedOffset uint16 = 0
-	ub.Fields = make([]UniformBufferField, 0, len(fields))
-	fieldIdToTypeMap := make(map[uint16]ElementType, len(fields))
+	fieldIdToTypeMap := make(map[uint16]ElementType, len(fieldsToAdd))
 
-	for i := 0; i < len(fields); i++ {
+	for i := 0; i < len(fieldsToAdd); i++ {
 
-		f := fields[i]
+		f := fieldsToAdd[i]
 		if f.Count == 0 {
 			f.Count = 1
 		}
@@ -82,8 +94,8 @@ func (ub *UniformBuffer) addFields(fields []UniformBufferFieldInput) (totalSize 
 			alignedOffset += alignmentBoundary - alignmentError
 		}
 
-		newField := UniformBufferField{Id: f.Id, Type: f.Type, AlignedOffset: alignedOffset, Count: f.Count}
-		ub.Fields = append(ub.Fields, newField)
+		newField := UniformBufferField{Id: f.Id, Type: f.Type, AlignedOffset: startAlignedOffset + alignedOffset, Count: f.Count}
+		*arrayToAddTo = append(*arrayToAddTo, newField)
 
 		// Prepare aligned offset for the next field.
 		//
@@ -99,7 +111,21 @@ func (ub *UniformBuffer) addFields(fields []UniformBufferFieldInput) (totalSize 
 			multiplier = 4
 		}
 
-		alignedOffset = newField.AlignedOffset + alignmentBoundary*f.Count*multiplier
+		if f.Type == DataTypeStruct {
+
+			subfieldsAlignedOffset := uint16(addUniformBufferFieldsToArray(alignedOffset, arrayToAddTo, f.Subfields))
+
+			// Pad structs to 16 byte boundary
+			subfieldsAlignmentError := subfieldsAlignedOffset % 16
+			if subfieldsAlignmentError != 0 {
+				subfieldsAlignedOffset += 16 - subfieldsAlignmentError
+			}
+
+			alignedOffset += subfieldsAlignedOffset * f.Count
+
+		} else {
+			alignedOffset = newField.AlignedOffset + alignmentBoundary*f.Count*multiplier - startAlignedOffset
+		}
 	}
 
 	return uint32(alignedOffset)
@@ -344,6 +370,10 @@ func (ub *UniformBuffer) SetStruct(inputStruct any) {
 					WriteF32SliceToByteBuf(buf, &writeIndex, m.Data[3][:])
 				}
 			}
+
+		// @TODO: Probably can change it similar to addFields, where we send in a struct AND a field array
+		// and let the function operate on that instead of the globaly fields array
+		// case DataTypeStruct:
 
 		default:
 			assert.T(false, "Unknown uniform buffer data type passed. DataType '%d'", ubField.Type)
@@ -634,7 +664,7 @@ func NewUniformBuffer(fields []UniformBufferFieldInput) UniformBuffer {
 
 	ub := UniformBuffer{}
 
-	ub.Size = ub.addFields(fields)
+	ub.Size = addUniformBufferFieldsToArray(0, &ub.Fields, fields)
 
 	gl.GenBuffers(1, &ub.Id)
 	if ub.Id == 0 {

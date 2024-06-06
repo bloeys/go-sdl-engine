@@ -70,6 +70,16 @@ out vec3 tangentSpotLightPositions[NUM_SPOT_LIGHTS];
 out vec3 tangentSpotLightDirections[NUM_SPOT_LIGHTS];
 out vec3 tangentPointLightPositions[NUM_POINT_LIGHTS];
 
+struct Test1 {
+    float ff;
+    vec3 v3;
+};
+
+layout (std140) uniform Test2 {
+    float f1;
+    Test1 s;
+};
+
 void main()
 {
     vertUV0 = vertUV0In;

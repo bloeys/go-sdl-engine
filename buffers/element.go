@@ -2,6 +2,7 @@ package buffers
 
 import (
 	"github.com/bloeys/nmage/assert"
+	"github.com/bloeys/nmage/logging"
 	"github.com/go-gl/gl/v4.1-core/gl"
 )
 
@@ -28,6 +29,8 @@ const (
 	DataTypeMat2
 	DataTypeMat3
 	DataTypeMat4
+
+	DataTypeStruct
 )
 
 func (dt ElementType) GLType() uint32 {
@@ -53,6 +56,10 @@ func (dt ElementType) GLType() uint32 {
 		fallthrough
 	case DataTypeMat4:
 		return gl.FLOAT
+
+	case DataTypeStruct:
+		logging.ErrLog.Fatalf("ElementType.GLType of DataTypeStruct is not supported")
+		return 0
 
 	default:
 		assert.T(false, "Unknown data type passed. DataType '%d'", dt)
@@ -85,6 +92,10 @@ func (dt ElementType) CompSize() int32 {
 	case DataTypeMat4:
 		return 4
 
+	case DataTypeStruct:
+		logging.ErrLog.Fatalf("ElementType.CompSize of DataTypeStruct is not supported")
+		return 0
+
 	default:
 		assert.T(false, "Unknown data type passed. DataType '%d'", dt)
 		return 0
@@ -115,6 +126,10 @@ func (dt ElementType) CompCount() int32 {
 		return 3 * 3
 	case DataTypeMat4:
 		return 4 * 4
+
+	case DataTypeStruct:
+		logging.ErrLog.Fatalf("ElementType.CompCount of DataTypeStruct is not supported")
+		return 0
 
 	default:
 		assert.T(false, "Unknown data type passed. DataType '%d'", dt)
@@ -147,6 +162,10 @@ func (dt ElementType) Size() int32 {
 		return 3 * 3 * 4
 	case DataTypeMat4:
 		return 4 * 4 * 4
+
+	case DataTypeStruct:
+		logging.ErrLog.Fatalf("ElementType.Size of DataTypeStruct is not supported")
+		return 0
 
 	default:
 		assert.T(false, "Unknown data type passed. DataType '%d'", dt)
@@ -182,6 +201,10 @@ func (dt ElementType) GlStd140BaseAlignment() uint8 {
 	case DataTypeMat4:
 		return (4 * 4) * 4
 
+	case DataTypeStruct:
+		logging.ErrLog.Fatalf("ElementType.GlStd140BaseAlignment of DataTypeStruct is not supported")
+		return 0
+
 	default:
 		assert.T(false, "Unknown data type passed. DataType '%d'", dt)
 		return 0
@@ -211,6 +234,8 @@ func (dt ElementType) GlStd140AlignmentBoundary() uint16 {
 	case DataTypeMat3:
 		fallthrough
 	case DataTypeMat4:
+		fallthrough
+	case DataTypeStruct:
 		return 16
 
 	default:
@@ -243,6 +268,9 @@ func (dt ElementType) String() string {
 		return "Mat3"
 	case DataTypeMat4:
 		return "Mat4"
+
+	case DataTypeStruct:
+		return "Struct"
 
 	default:
 		return "Unknown"
