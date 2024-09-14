@@ -124,6 +124,21 @@ func (m *Material) UnBind() {
 	gl.UseProgram(0)
 }
 
+func (m *Material) SetUniformBlockBindingPoint(uniformBlockName string, bindPointIndex uint32) {
+
+	nullStr := gl.Str(uniformBlockName + "\x00")
+	index := gl.GetUniformBlockIndex(m.ShaderProg.Id, nullStr)
+	assert.T(
+		index != gl.INVALID_INDEX,
+		"SetUniformBlockBindingPoint for material=%s (matId=%d; shaderId=%d) failed because the uniform block=%s wasn't found",
+		m.Name,
+		m.Id,
+		m.ShaderProg.Id,
+		uniformBlockName,
+	)
+	gl.UniformBlockBinding(m.ShaderProg.Id, index, bindPointIndex)
+}
+
 func (m *Material) GetAttribLoc(attribName string) int32 {
 
 	loc, ok := m.AttribLocs[attribName]

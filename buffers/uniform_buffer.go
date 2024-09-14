@@ -50,6 +50,10 @@ func (ub *UniformBuffer) UnBind() {
 	gl.BindBuffer(gl.UNIFORM_BUFFER, 0)
 }
 
+func (ub *UniformBuffer) SetBindPoint(bindPointIndex uint32) {
+	gl.BindBufferBase(gl.UNIFORM_BUFFER, bindPointIndex, ub.Id)
+}
+
 func addUniformBufferFieldsToArray(startAlignedOffset uint16, arrayToAddTo *[]UniformBufferField, fieldsToAdd []UniformBufferFieldInput) (totalSize uint32) {
 
 	if len(fieldsToAdd) == 0 {
@@ -113,7 +117,7 @@ func addUniformBufferFieldsToArray(startAlignedOffset uint16, arrayToAddTo *[]Un
 
 		if f.Type == DataTypeStruct {
 
-			subfieldsAlignedOffset := uint16(addUniformBufferFieldsToArray(alignedOffset, arrayToAddTo, f.Subfields))
+			subfieldsAlignedOffset := uint16(addUniformBufferFieldsToArray(startAlignedOffset+alignedOffset, arrayToAddTo, f.Subfields))
 
 			// Pad structs to 16 byte boundary
 			subfieldsAlignmentError := subfieldsAlignedOffset % 16
@@ -199,6 +203,14 @@ func (ub *UniformBuffer) SetMat4(fieldId uint16, val *gglm.Mat4) {
 }
 
 func (ub *UniformBuffer) SetStruct(inputStruct any) {
+	setStruct(ub.Fields, make([]byte, ub.Size), inputStruct, 1000_000)
+}
+
+func setStruct(fields []UniformBufferField, buf []byte, inputStruct any, maxFieldsToConsume int) (bytesWritten, fieldsConsumed int) {
+
+	if len(fields) == 0 {
+		return
+	}
 
 	if inputStruct == nil {
 		logging.ErrLog.Panicf("UniformBuffer.SetStruct called with a value that is nil")
@@ -209,16 +221,15 @@ func (ub *UniformBuffer) SetStruct(inputStruct any) {
 		logging.ErrLog.Panicf("UniformBuffer.SetStruct called with a value that is not a struct. Val=%v\n", inputStruct)
 	}
 
-	if structVal.NumField() != len(ub.Fields) {
-		logging.ErrLog.Panicf("struct fields must match uniform buffer fields, but uniform buffer contains %d fields, while the passed struct has %d fields\n", len(ub.Fields), structVal.NumField())
-	}
+	structFieldIndex := 0
+	// structFieldCount := structVal.NumField()
+	for fieldIndex := 0; fieldIndex < len(fields) && fieldIndex < maxFieldsToConsume; fieldIndex++ {
 
-	writeIndex := 0
-	buf := make([]byte, ub.Size)
-	for i := 0; i < len(ub.Fields); i++ {
+		ubField := &fields[fieldIndex]
+		valField := structVal.Field(structFieldIndex)
 
-		ubField := &ub.Fields[i]
-		valField := structVal.Field(i)
+		fieldsConsumed++
+		structFieldIndex++
 
 		kind := valField.Kind()
 		if kind == reflect.Pointer {
@@ -238,7 +249,7 @@ func (ub *UniformBuffer) SetStruct(inputStruct any) {
 		}
 
 		typeMatches := false
-		writeIndex = int(ubField.AlignedOffset)
+		bytesWritten = int(ubField.AlignedOffset)
 
 		switch ubField.Type {
 
@@ -248,9 +259,9 @@ func (ub *UniformBuffer) SetStruct(inputStruct any) {
 			if typeMatches {
 
 				if isArray {
-					Write32BitIntegerSliceToByteBufWithAlignment(buf, &writeIndex, 16, valField.Slice(0, valField.Len()).Interface().([]uint32))
+					Write32BitIntegerSliceToByteBufWithAlignment(buf, &bytesWritten, 16, valField.Slice(0, valField.Len()).Interface().([]uint32))
 				} else {
-					Write32BitIntegerToByteBuf(buf, &writeIndex, uint32(valField.Uint()))
+					Write32BitIntegerToByteBuf(buf, &bytesWritten, uint32(valField.Uint()))
 				}
 			}
 
@@ -260,9 +271,9 @@ func (ub *UniformBuffer) SetStruct(inputStruct any) {
 			if typeMatches {
 
 				if isArray {
-					WriteF32SliceToByteBufWithAlignment(buf, &writeIndex, 16, valField.Slice(0, valField.Len()).Interface().([]float32))
+					WriteF32SliceToByteBufWithAlignment(buf, &bytesWritten, 16, valField.Slice(0, valField.Len()).Interface().([]float32))
 				} else {
-					WriteF32ToByteBuf(buf, &writeIndex, float32(valField.Float()))
+					WriteF32ToByteBuf(buf, &bytesWritten, float32(valField.Float()))
 				}
 			}
 
@@ -272,9 +283,9 @@ func (ub *UniformBuffer) SetStruct(inputStruct any) {
 			if typeMatches {
 
 				if isArray {
-					Write32BitIntegerSliceToByteBufWithAlignment(buf, &writeIndex, 16, valField.Slice(0, valField.Len()).Interface().([]int32))
+					Write32BitIntegerSliceToByteBufWithAlignment(buf, &bytesWritten, 16, valField.Slice(0, valField.Len()).Interface().([]int32))
 				} else {
-					Write32BitIntegerToByteBuf(buf, &writeIndex, uint32(valField.Int()))
+					Write32BitIntegerToByteBuf(buf, &bytesWritten, uint32(valField.Int()))
 				}
 			}
 
@@ -285,10 +296,10 @@ func (ub *UniformBuffer) SetStruct(inputStruct any) {
 			if typeMatches {
 
 				if isArray {
-					WriteVec2SliceToByteBufWithAlignment(buf, &writeIndex, 16, valField.Slice(0, valField.Len()).Interface().([]gglm.Vec2))
+					WriteVec2SliceToByteBufWithAlignment(buf, &bytesWritten, 16, valField.Slice(0, valField.Len()).Interface().([]gglm.Vec2))
 				} else {
 					v2 := valField.Interface().(gglm.Vec2)
-					WriteF32SliceToByteBuf(buf, &writeIndex, v2.Data[:])
+					WriteF32SliceToByteBuf(buf, &bytesWritten, v2.Data[:])
 				}
 			}
 
@@ -299,10 +310,10 @@ func (ub *UniformBuffer) SetStruct(inputStruct any) {
 			if typeMatches {
 
 				if isArray {
-					WriteVec3SliceToByteBufWithAlignment(buf, &writeIndex, 16, valField.Slice(0, valField.Len()).Interface().([]gglm.Vec3))
+					WriteVec3SliceToByteBufWithAlignment(buf, &bytesWritten, 16, valField.Slice(0, valField.Len()).Interface().([]gglm.Vec3))
 				} else {
 					v3 := valField.Interface().(gglm.Vec3)
-					WriteF32SliceToByteBuf(buf, &writeIndex, v3.Data[:])
+					WriteF32SliceToByteBuf(buf, &bytesWritten, v3.Data[:])
 				}
 			}
 
@@ -313,10 +324,10 @@ func (ub *UniformBuffer) SetStruct(inputStruct any) {
 			if typeMatches {
 
 				if isArray {
-					WriteVec4SliceToByteBufWithAlignment(buf, &writeIndex, 16, valField.Slice(0, valField.Len()).Interface().([]gglm.Vec4))
+					WriteVec4SliceToByteBufWithAlignment(buf, &bytesWritten, 16, valField.Slice(0, valField.Len()).Interface().([]gglm.Vec4))
 				} else {
 					v3 := valField.Interface().(gglm.Vec4)
-					WriteF32SliceToByteBuf(buf, &writeIndex, v3.Data[:])
+					WriteF32SliceToByteBuf(buf, &bytesWritten, v3.Data[:])
 				}
 			}
 
@@ -328,11 +339,11 @@ func (ub *UniformBuffer) SetStruct(inputStruct any) {
 
 				if isArray {
 					m2Arr := valField.Interface().([]gglm.Mat2)
-					WriteMat2SliceToByteBufWithAlignment(buf, &writeIndex, 16*2, m2Arr)
+					WriteMat2SliceToByteBufWithAlignment(buf, &bytesWritten, 16*2, m2Arr)
 				} else {
 					m := valField.Interface().(gglm.Mat2)
-					WriteF32SliceToByteBuf(buf, &writeIndex, m.Data[0][:])
-					WriteF32SliceToByteBuf(buf, &writeIndex, m.Data[1][:])
+					WriteF32SliceToByteBuf(buf, &bytesWritten, m.Data[0][:])
+					WriteF32SliceToByteBuf(buf, &bytesWritten, m.Data[1][:])
 				}
 			}
 
@@ -344,12 +355,12 @@ func (ub *UniformBuffer) SetStruct(inputStruct any) {
 
 				if isArray {
 					m3Arr := valField.Interface().([]gglm.Mat3)
-					WriteMat3SliceToByteBufWithAlignment(buf, &writeIndex, 16*3, m3Arr)
+					WriteMat3SliceToByteBufWithAlignment(buf, &bytesWritten, 16*3, m3Arr)
 				} else {
 					m := valField.Interface().(gglm.Mat3)
-					WriteF32SliceToByteBuf(buf, &writeIndex, m.Data[0][:])
-					WriteF32SliceToByteBuf(buf, &writeIndex, m.Data[1][:])
-					WriteF32SliceToByteBuf(buf, &writeIndex, m.Data[2][:])
+					WriteF32SliceToByteBuf(buf, &bytesWritten, m.Data[0][:])
+					WriteF32SliceToByteBuf(buf, &bytesWritten, m.Data[1][:])
+					WriteF32SliceToByteBuf(buf, &bytesWritten, m.Data[2][:])
 				}
 			}
 
@@ -361,34 +372,44 @@ func (ub *UniformBuffer) SetStruct(inputStruct any) {
 
 				if isArray {
 					m4Arr := valField.Interface().([]gglm.Mat4)
-					WriteMat4SliceToByteBufWithAlignment(buf, &writeIndex, 16*4, m4Arr)
+					WriteMat4SliceToByteBufWithAlignment(buf, &bytesWritten, 16*4, m4Arr)
 				} else {
 					m := valField.Interface().(gglm.Mat4)
-					WriteF32SliceToByteBuf(buf, &writeIndex, m.Data[0][:])
-					WriteF32SliceToByteBuf(buf, &writeIndex, m.Data[1][:])
-					WriteF32SliceToByteBuf(buf, &writeIndex, m.Data[2][:])
-					WriteF32SliceToByteBuf(buf, &writeIndex, m.Data[3][:])
+					WriteF32SliceToByteBuf(buf, &bytesWritten, m.Data[0][:])
+					WriteF32SliceToByteBuf(buf, &bytesWritten, m.Data[1][:])
+					WriteF32SliceToByteBuf(buf, &bytesWritten, m.Data[2][:])
+					WriteF32SliceToByteBuf(buf, &bytesWritten, m.Data[3][:])
 				}
 			}
 
-		// @TODO: Probably can change it similar to addFields, where we send in a struct AND a field array
-		// and let the function operate on that instead of the globaly fields array
-		// case DataTypeStruct:
+		case DataTypeStruct:
+			typeMatches = kind == reflect.Struct
+
+			if typeMatches {
+
+				setStructBytesWritten, setStructFieldsConsumed := setStruct(fields[fieldIndex+1:], buf, valField.Interface(), valField.NumField())
+
+				bytesWritten += setStructBytesWritten
+				fieldIndex += setStructFieldsConsumed
+				fieldsConsumed += setStructFieldsConsumed
+			}
 
 		default:
 			assert.T(false, "Unknown uniform buffer data type passed. DataType '%d'", ubField.Type)
 		}
 
 		if !typeMatches {
-			logging.ErrLog.Panicf("Struct field ordering and types must match uniform buffer fields, but at field index %d got UniformBufferField=%v but a struct field of %s\n", i, ubField, valField.String())
+			logging.ErrLog.Panicf("Struct field ordering and types must match uniform buffer fields, but at field index %d got UniformBufferField=%v but a struct field of type %s\n", fieldIndex, ubField, valField.String())
 		}
 	}
 
-	if writeIndex == 0 {
-		return
+	if bytesWritten == 0 {
+		return 0, fieldsConsumed
 	}
 
-	gl.BufferSubData(gl.UNIFORM_BUFFER, 0, writeIndex, gl.Ptr(&buf[0]))
+	gl.BufferSubData(gl.UNIFORM_BUFFER, 0, bytesWritten, gl.Ptr(&buf[0]))
+
+	return bytesWritten - int(fields[0].AlignedOffset), fieldsConsumed
 }
 
 func Write32BitIntegerToByteBuf[T uint32 | int32](buf []byte, startIndex *int, val T) {
@@ -673,6 +694,7 @@ func NewUniformBuffer(fields []UniformBufferFieldInput) UniformBuffer {
 
 	ub.Bind()
 	gl.BufferData(gl.UNIFORM_BUFFER, int(ub.Size), gl.Ptr(nil), gl.STATIC_DRAW)
+	ub.UnBind()
 
 	return ub
 }
