@@ -203,10 +203,10 @@ func (ub *UniformBuffer) SetMat4(fieldId uint16, val *gglm.Mat4) {
 }
 
 func (ub *UniformBuffer) SetStruct(inputStruct any) {
-	setStruct(ub.Fields, make([]byte, ub.Size), inputStruct, 1000_000)
+	setStruct(ub.Fields, make([]byte, ub.Size), inputStruct, 1000_000, false)
 }
 
-func setStruct(fields []UniformBufferField, buf []byte, inputStruct any, maxFieldsToConsume int) (bytesWritten, fieldsConsumed int) {
+func setStruct(fields []UniformBufferField, buf []byte, inputStruct any, maxFieldsToConsume int, onlyBufWrite bool) (bytesWritten, fieldsConsumed int) {
 
 	if len(fields) == 0 {
 		return
@@ -387,7 +387,7 @@ func setStruct(fields []UniformBufferField, buf []byte, inputStruct any, maxFiel
 
 			if typeMatches {
 
-				setStructBytesWritten, setStructFieldsConsumed := setStruct(fields[fieldIndex+1:], buf, valField.Interface(), valField.NumField())
+				setStructBytesWritten, setStructFieldsConsumed := setStruct(fields[fieldIndex+1:], buf, valField.Interface(), valField.NumField(), true)
 
 				bytesWritten += setStructBytesWritten
 				fieldIndex += setStructFieldsConsumed
@@ -407,7 +407,9 @@ func setStruct(fields []UniformBufferField, buf []byte, inputStruct any, maxFiel
 		return 0, fieldsConsumed
 	}
 
-	gl.BufferSubData(gl.UNIFORM_BUFFER, 0, bytesWritten, gl.Ptr(&buf[0]))
+	if !onlyBufWrite {
+		gl.BufferSubData(gl.UNIFORM_BUFFER, 0, bytesWritten, gl.Ptr(&buf[0]))
+	}
 
 	return bytesWritten - int(fields[0].AlignedOffset), fieldsConsumed
 }
