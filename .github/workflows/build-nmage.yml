@@ -5,6 +5,31 @@ on:
   workflow_dispatch:
 
 jobs:
+  build-nmage-windows:
+    runs-on: windows-latest
+
+    steps:
+      - name: Install golang
+        uses: actions/setup-go@v5
+        with:
+          go-version: ">=1.23"
+
+      - name: Install assimp-go dll
+        run: |
+          New-Item -ItemType Directory -Force -Path C:\Windows\System32
+          Invoke-WebRequest -Uri "https://github.com/bloeys/assimp-go/releases/download/v0.4.2/libassimp-5.dll" -OutFile "C:\Windows\System32\assimp.dll"
+
+      - name: Install SDL2
+        run: |
+          choco install sdl2 sdl2_image sdl2_ttf sdl2_gfx pkg-config
+
+      - name: Clone nmage
+        run: git clone https://github.com/bloeys/nmage
+
+      - name: Build nmage
+        working-directory: nmage
+        run: go build .
+
   build-nmage-macos:
     runs-on: ${{ matrix.os }}
 
@@ -21,8 +46,17 @@ jobs:
         with:
           go-version: ">=1.23"
 
+      - name: Determine architecture
+        id: arch
+        run: |
+          if [ "$(uname -m)" = "arm64" ]; then
+            echo "arch=arm64" >> "$GITHUB_OUTPUT"
+          else
+            echo "arch=amd64" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Install assimp-go dylib
-        run: sudo mkdir -p /usr/local/lib && sudo wget https://github.com/bloeys/assimp-go/releases/download/v0.4.2/libassimp_darwin_amd64.dylib -O /usr/local/lib/libassimp.5.dylib
+        run: sudo mkdir -p /usr/local/lib && sudo wget https://github.com/bloeys/assimp-go/releases/download/v0.4.2/libassimp_darwin_${{ steps.arch.outputs.arch }}.dylib -O /usr/local/lib/libassimp.5.dylib
 
       - name: Install SDL2
         run: brew install sdl2{,_image,_ttf,_gfx} pkg-config
