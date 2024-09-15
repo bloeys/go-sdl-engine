@@ -239,9 +239,10 @@ type SpotLightUboData struct {
 }
 
 type LightsUboData struct {
-	DirLight    DirLightUboData
-	PointLights [POINT_LIGHT_COUNT]PointLightUboData
-	SpotLights  [SPOT_LIGHT_COUNT]SpotLightUboData
+	DirLight     DirLightUboData
+	PointLights  [POINT_LIGHT_COUNT]PointLightUboData
+	SpotLights   [SPOT_LIGHT_COUNT]SpotLightUboData
+	AmbientColor gglm.Vec3
 }
 
 const (
@@ -333,8 +334,6 @@ var (
 	dpiScaling float32
 
 	// Light settings
-	ambientColor = gglm.NewVec3(20.0/255, 20.0/255, 20.0/255)
-
 	dirLightDir = gglm.NewVec3(0, -0.5, -0.8)
 	// Lights
 	dirLight = DirLight{
@@ -614,7 +613,6 @@ func (g *Game) Init() {
 	whiteMat.SetUnifInt32("material.specular", int32(materials.TextureSlot_Specular))
 	whiteMat.SetUnifInt32("material.normal", int32(materials.TextureSlot_Normal))
 	whiteMat.SetUnifInt32("material.emission", int32(materials.TextureSlot_Emission))
-	whiteMat.SetUnifVec3("ambientColor", &ambientColor)
 	whiteMat.SetUnifFloat32("material.shininess", whiteMat.Shininess)
 	whiteMat.SetUnifInt32("dirLightShadowMap", int32(materials.TextureSlot_ShadowMap1))
 	whiteMat.SetUnifInt32("pointLightCubeShadowMaps", int32(materials.TextureSlot_Cubemap_Array))
@@ -629,7 +627,6 @@ func (g *Game) Init() {
 	containerMat.SetUnifInt32("material.specular", int32(materials.TextureSlot_Specular))
 	containerMat.SetUnifInt32("material.normal", int32(materials.TextureSlot_Normal))
 	containerMat.SetUnifInt32("material.emission", int32(materials.TextureSlot_Emission))
-	containerMat.SetUnifVec3("ambientColor", &ambientColor)
 	containerMat.SetUnifFloat32("material.shininess", containerMat.Shininess)
 	containerMat.SetUnifInt32("dirLightShadowMap", int32(materials.TextureSlot_ShadowMap1))
 	containerMat.SetUnifInt32("pointLightCubeShadowMaps", int32(materials.TextureSlot_Cubemap_Array))
@@ -644,7 +641,6 @@ func (g *Game) Init() {
 	groundMat.SetUnifInt32("material.specular", int32(materials.TextureSlot_Specular))
 	groundMat.SetUnifInt32("material.normal", int32(materials.TextureSlot_Normal))
 	groundMat.SetUnifInt32("material.emission", int32(materials.TextureSlot_Emission))
-	groundMat.SetUnifVec3("ambientColor", &ambientColor)
 	groundMat.SetUnifFloat32("material.shininess", groundMat.Shininess)
 	groundMat.SetUnifInt32("dirLightShadowMap", int32(materials.TextureSlot_ShadowMap1))
 	groundMat.SetUnifInt32("pointLightCubeShadowMaps", int32(materials.TextureSlot_Cubemap_Array))
@@ -658,7 +654,6 @@ func (g *Game) Init() {
 	palleteMat.SetUnifInt32("material.specular", int32(materials.TextureSlot_Specular))
 	palleteMat.SetUnifInt32("material.normal", int32(materials.TextureSlot_Normal))
 	palleteMat.SetUnifInt32("material.emission", int32(materials.TextureSlot_Emission))
-	palleteMat.SetUnifVec3("ambientColor", &ambientColor)
 	palleteMat.SetUnifFloat32("material.shininess", palleteMat.Shininess)
 	palleteMat.SetUnifInt32("dirLightShadowMap", int32(materials.TextureSlot_ShadowMap1))
 	palleteMat.SetUnifInt32("pointLightCubeShadowMaps", int32(materials.TextureSlot_Cubemap_Array))
@@ -699,8 +694,6 @@ func (g *Game) Init() {
 
 	// Fbos and lights
 	g.initFbos()
-	g.applyLightUpdates()
-
 	// Ubos
 	g.initUbos()
 
@@ -708,6 +701,7 @@ func (g *Game) Init() {
 	cam.Update()
 	updateAllProjViewMats(cam.ProjMat, cam.ViewMat)
 
+	lightsUboData.AmbientColor = gglm.NewVec3(20.0/255, 20.0/255, 20.0/255)
 	g.applyLightUpdates()
 }
 
@@ -762,6 +756,9 @@ func (g *Game) initUbos() {
 					{Id: 20, Type: buffers.DataTypeFloat32}, // 04 176
 				},
 			},
+
+			// Ambient
+			{Id: 21, Type: buffers.DataTypeVec3}, // 12 192
 		},
 	)
 
@@ -957,11 +954,8 @@ func (g *Game) showDebugWindow() {
 	// Ambient light
 	imgui.Text("Ambient Light")
 
-	if imgui.ColorEdit3("Ambient Color", &ambientColor.Data) {
-		whiteMat.SetUnifVec3("ambientColor", &ambientColor)
-		containerMat.SetUnifVec3("ambientColor", &ambientColor)
-		groundMat.SetUnifVec3("ambientColor", &ambientColor)
-		palleteMat.SetUnifVec3("ambientColor", &ambientColor)
+	if imgui.ColorEdit3("Ambient Color", &lightsUboData.AmbientColor.Data) {
+		updateLights = true
 	}
 
 	imgui.Spacing()

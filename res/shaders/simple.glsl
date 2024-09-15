@@ -52,6 +52,7 @@ layout (std140) uniform Lights {
     DirLight dirLight;
     PointLight pointLights[NUM_POINT_LIGHTS];
     SpotLight spotLights[NUM_SPOT_LIGHTS];
+    vec3 ambientColor;
 };
 
 //
@@ -197,9 +198,8 @@ layout (std140) uniform Lights {
     DirLight dirLight;
     PointLight pointLights[NUM_POINT_LIGHTS];
     SpotLight spotLights[NUM_SPOT_LIGHTS];
+    vec3 ambientColor;
 };
-
-uniform vec3 ambientColor = vec3(0.2, 0.2, 0.2);
 
 //
 // Outputs
