@@ -51,12 +51,12 @@ layout (std140) uniform GlobalMatrices {
 layout (std140) uniform Lights {
     DirLight dirLight;
     PointLight pointLights[NUM_POINT_LIGHTS];
+    SpotLight spotLights[NUM_SPOT_LIGHTS];
 };
 
 //
 // Uniforms
 //
-uniform SpotLight spotLights[NUM_SPOT_LIGHTS];
 uniform mat4 modelMat;
 uniform mat4 dirLightProjViewMat;
 uniform mat4 spotLightProjViewMats[NUM_SPOT_LIGHTS];
@@ -186,7 +186,6 @@ struct SpotLight {
     float innerCutoff;
     float outerCutoff;
 };
-uniform SpotLight spotLights[NUM_SPOT_LIGHTS];
 uniform sampler2DArray spotLightShadowMaps;
 
 layout (std140) uniform GlobalMatrices {
@@ -197,6 +196,7 @@ layout (std140) uniform GlobalMatrices {
 layout (std140) uniform Lights {
     DirLight dirLight;
     PointLight pointLights[NUM_POINT_LIGHTS];
+    SpotLight spotLights[NUM_SPOT_LIGHTS];
 };
 
 uniform vec3 ambientColor = vec3(0.2, 0.2, 0.2);

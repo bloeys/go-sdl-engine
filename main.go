@@ -229,9 +229,19 @@ type PointLightUboData struct {
 	FarPlane      float32
 }
 
+type SpotLightUboData struct {
+	Pos           gglm.Vec3
+	Dir           gglm.Vec3
+	DiffuseColor  gglm.Vec3
+	SpecularColor gglm.Vec3
+	InnerCutoff   float32
+	OuterCutoff   float32
+}
+
 type LightsUboData struct {
 	DirLight    DirLightUboData
 	PointLights [POINT_LIGHT_COUNT]PointLightUboData
+	SpotLights  [SPOT_LIGHT_COUNT]SpotLightUboData
 }
 
 const (
@@ -740,6 +750,18 @@ func (g *Game) initUbos() {
 					{Id: 13, Type: buffers.DataTypeFloat32}, // 04 108
 				},
 			},
+			// Spot lights
+			{Id: 14, Type: buffers.DataTypeStruct,
+				Count: SPOT_LIGHT_COUNT,
+				Subfields: []buffers.UniformBufferFieldInput{
+					{Id: 15, Type: buffers.DataTypeVec3},    // 12 112
+					{Id: 16, Type: buffers.DataTypeVec3},    // 12 128
+					{Id: 17, Type: buffers.DataTypeVec3},    // 12 144
+					{Id: 18, Type: buffers.DataTypeVec3},    // 12 160
+					{Id: 19, Type: buffers.DataTypeFloat32}, // 04 172
+					{Id: 20, Type: buffers.DataTypeFloat32}, // 04 176
+				},
+			},
 		},
 	)
 
@@ -846,37 +868,14 @@ func (g *Game) applyLightUpdates() {
 		innerCutoffCos := l.InnerCutoffCos()
 		outerCutoffCos := l.OuterCutoffCos()
 
-		indexString := "spotLights[" + strconv.Itoa(i) + "]"
-
-		whiteMat.SetUnifVec3(indexString+".pos", &l.Pos)
-		containerMat.SetUnifVec3(indexString+".pos", &l.Pos)
-		groundMat.SetUnifVec3(indexString+".pos", &l.Pos)
-		palleteMat.SetUnifVec3(indexString+".pos", &l.Pos)
-
-		whiteMat.SetUnifVec3(indexString+".dir", &l.Dir)
-		containerMat.SetUnifVec3(indexString+".dir", &l.Dir)
-		groundMat.SetUnifVec3(indexString+".dir", &l.Dir)
-		palleteMat.SetUnifVec3(indexString+".dir", &l.Dir)
-
-		whiteMat.SetUnifVec3(indexString+".diffuseColor", &l.DiffuseColor)
-		containerMat.SetUnifVec3(indexString+".diffuseColor", &l.DiffuseColor)
-		groundMat.SetUnifVec3(indexString+".diffuseColor", &l.DiffuseColor)
-		palleteMat.SetUnifVec3(indexString+".diffuseColor", &l.DiffuseColor)
-
-		whiteMat.SetUnifVec3(indexString+".specularColor", &l.SpecularColor)
-		containerMat.SetUnifVec3(indexString+".specularColor", &l.SpecularColor)
-		groundMat.SetUnifVec3(indexString+".specularColor", &l.SpecularColor)
-		palleteMat.SetUnifVec3(indexString+".specularColor", &l.SpecularColor)
-
-		whiteMat.SetUnifFloat32(indexString+".innerCutoff", innerCutoffCos)
-		containerMat.SetUnifFloat32(indexString+".innerCutoff", innerCutoffCos)
-		groundMat.SetUnifFloat32(indexString+".innerCutoff", innerCutoffCos)
-		palleteMat.SetUnifFloat32(indexString+".innerCutoff", innerCutoffCos)
-
-		whiteMat.SetUnifFloat32(indexString+".outerCutoff", outerCutoffCos)
-		containerMat.SetUnifFloat32(indexString+".outerCutoff", outerCutoffCos)
-		groundMat.SetUnifFloat32(indexString+".outerCutoff", outerCutoffCos)
-		palleteMat.SetUnifFloat32(indexString+".outerCutoff", outerCutoffCos)
+		lightsUboData.SpotLights[i] = SpotLightUboData{
+			Pos:           l.Pos,
+			Dir:           l.Dir,
+			DiffuseColor:  l.DiffuseColor,
+			SpecularColor: l.SpecularColor,
+			InnerCutoff:   innerCutoffCos,
+			OuterCutoff:   outerCutoffCos,
+		}
 	}
 
 	whiteMat.ShadowMapTexArray1 = spotLightDepthMapFbo.Attachments[0].Id
@@ -884,6 +883,7 @@ func (g *Game) applyLightUpdates() {
 	groundMat.ShadowMapTexArray1 = spotLightDepthMapFbo.Attachments[0].Id
 	palleteMat.ShadowMapTexArray1 = spotLightDepthMapFbo.Attachments[0].Id
 
+	// Apply changes
 	lightsUbo.Bind()
 	lightsUbo.SetStruct(lightsUboData)
 }
@@ -1068,34 +1068,20 @@ func (g *Game) showDebugWindow() {
 				continue
 			}
 
-			indexString := "spotLights[" + indexNumString + "]"
-
 			if imgui.DragFloat3("Pos", &l.Pos.Data) {
-				whiteMat.SetUnifVec3(indexString+".pos", &l.Pos)
-				containerMat.SetUnifVec3(indexString+".pos", &l.Pos)
-				groundMat.SetUnifVec3(indexString+".pos", &l.Pos)
-				palleteMat.SetUnifVec3(indexString+".pos", &l.Pos)
+				updateLights = true
 			}
 
 			if imgui.DragFloat3("Dir", &l.Dir.Data) {
-				whiteMat.SetUnifVec3(indexString+".dir", &l.Dir)
-				containerMat.SetUnifVec3(indexString+".dir", &l.Dir)
-				groundMat.SetUnifVec3(indexString+".dir", &l.Dir)
-				palleteMat.SetUnifVec3(indexString+".dir", &l.Dir)
+				updateLights = true
 			}
 
 			if imgui.ColorEdit3("Diffuse Color", &l.DiffuseColor.Data) {
-				whiteMat.SetUnifVec3(indexString+".diffuseColor", &l.DiffuseColor)
-				containerMat.SetUnifVec3(indexString+".diffuseColor", &l.DiffuseColor)
-				groundMat.SetUnifVec3(indexString+".diffuseColor", &l.DiffuseColor)
-				palleteMat.SetUnifVec3(indexString+".diffuseColor", &l.DiffuseColor)
+				updateLights = true
 			}
 
 			if imgui.ColorEdit3("Specular Color", &l.SpecularColor.Data) {
-				whiteMat.SetUnifVec3(indexString+".specularColor", &l.SpecularColor)
-				containerMat.SetUnifVec3(indexString+".specularColor", &l.SpecularColor)
-				groundMat.SetUnifVec3(indexString+".specularColor", &l.SpecularColor)
-				palleteMat.SetUnifVec3(indexString+".specularColor", &l.SpecularColor)
+				updateLights = true
 			}
 
 			if imgui.DragFloatRange2V(
@@ -1109,18 +1095,7 @@ func (g *Game) showDebugWindow() {
 				"%.3f",
 				imgui.SliderFlagsNone,
 			) {
-
-				cos := l.InnerCutoffCos()
-				whiteMat.SetUnifFloat32(indexString+".innerCutoff", cos)
-				containerMat.SetUnifFloat32(indexString+".innerCutoff", cos)
-				groundMat.SetUnifFloat32(indexString+".innerCutoff", cos)
-				palleteMat.SetUnifFloat32(indexString+".innerCutoff", cos)
-
-				cos = l.OuterCutoffCos()
-				whiteMat.SetUnifFloat32(indexString+".outerCutoff", cos)
-				containerMat.SetUnifFloat32(indexString+".outerCutoff", cos)
-				groundMat.SetUnifFloat32(indexString+".outerCutoff", cos)
-				palleteMat.SetUnifFloat32(indexString+".outerCutoff", cos)
+				updateLights = true
 			}
 
 			imgui.DragFloat("Spot Near Plane", &l.NearPlane)
