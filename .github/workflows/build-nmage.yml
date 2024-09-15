@@ -6,7 +6,15 @@ on:
 
 jobs:
   build-nmage-macos:
-    runs-on: macos-12
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      matrix:
+        # Based on: https://github.com/actions/runner-images?tab=readme-ov-file#available-images
+        os:
+          - macos-13 # x86
+          - macos-13-xlarge # Arm
+
     steps:
       - name: Install golang
         uses: actions/setup-go@v5
@@ -17,7 +25,7 @@ jobs:
         run: sudo mkdir -p /usr/local/lib && sudo wget https://github.com/bloeys/assimp-go/releases/download/v0.4.2/libassimp_darwin_amd64.dylib -O /usr/local/lib/libassimp.5.dylib
 
       - name: Install SDL2
-        run: brew install sdl2{,_image,_mixer,_ttf,_gfx} pkg-config
+        run: brew install sdl2{,_image,_ttf,_gfx} pkg-config
 
       - name: Clone nmage
         run: git clone https://github.com/bloeys/nmage
