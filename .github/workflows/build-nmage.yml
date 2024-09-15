@@ -13,7 +13,7 @@ jobs:
         # Based on: https://github.com/actions/runner-images?tab=readme-ov-file#available-images
         os:
           - macos-13 # x86
-          - macos-13-xlarge # Arm
+          - macos-14 # Arm
 
     steps:
       - name: Install golang
