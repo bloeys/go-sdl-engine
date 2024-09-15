@@ -29,7 +29,7 @@ jobs:
           dir "C:\mingw64"
           dir "C:\mingw64\bin"
           Copy-Item -Path "SDL2\SDL2-2.30.7\x86_64-w64-mingw32" -Destination "C:\mingw64" -Recurse -Force
-          dir "C:\msys64\mingw64\x86_64-w64-mingw32"
+          dir "C:\mingw64\x86_64-w64-mingw32"
 
       - name: Clone nmage
         run: git clone https://github.com/bloeys/nmage
