@@ -39,9 +39,9 @@ import (
 		- Normals maps ✅
 		- HDR ✅
 		- Fix bad point light acne ✅
-		- UBO support
+		- UBO support ✅
 		- Skeletal animations
-		- Cascaded shadow mapping
+		- (?) Cascaded shadow mapping
 	- In some cases we DO want input even when captured by UI. We need two systems within input package, one filtered and one not✅
 	- (?) Support OpenGL 4.1 and 4.6, and default to 4.6
 	- Proper model loading (i.e. load model by reading all its meshes, textures, and so on together)
@@ -688,7 +688,7 @@ func (g *Game) Init() {
 	// We don't actually care about the values here because the quad is hardcoded in the shader,
 	// but we just want to have a vao with 6 vertices and uv0 so opengl can be called properly
 	screenQuadVbo := buffers.NewVertexBuffer(buffers.Element{ElementType: buffers.DataTypeVec3}, buffers.Element{ElementType: buffers.DataTypeVec2})
-	screenQuadVbo.SetData(make([]float32, 6), buffers.BufUsage_Static)
+	screenQuadVbo.SetData(make([]float32, 6), buffers.BufUsage_Static_Draw)
 	screenQuadVao = buffers.NewVertexArray()
 	screenQuadVao.AddVertexBuffer(screenQuadVbo)
 
@@ -712,6 +712,7 @@ func (g *Game) initUbos() {
 			{Id: 0, Type: buffers.DataTypeVec3},
 			{Id: 1, Type: buffers.DataTypeMat4},
 		},
+		buffers.BufUsage_Dynamic_Draw,
 	)
 
 	globalMatricesUbo.SetBindPoint(0)
@@ -760,6 +761,7 @@ func (g *Game) initUbos() {
 			// Ambient
 			{Id: 21, Type: buffers.DataTypeVec3}, // 12 192
 		},
+		buffers.BufUsage_Dynamic_Draw,
 	)
 
 	// fmt.Printf("\n==Lights UBO (id=%d)==\nSize=%d\nFields: %+v\n\n", lightsUbo.Id, lightsUbo.Size, lightsUbo.Fields)

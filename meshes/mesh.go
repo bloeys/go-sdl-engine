@@ -151,7 +151,7 @@ func NewMesh(name, modelPath string, postProcessFlags asig.PostProcess) (Mesh, e
 		indexBufData = append(indexBufData, indices...)
 	}
 
-	vbo.SetData(vertexBufData, buffers.BufUsage_Static)
+	vbo.SetData(vertexBufData, buffers.BufUsage_Static_Draw)
 	ibo.SetData(indexBufData)
 
 	mesh.Vao.AddVertexBuffer(vbo)

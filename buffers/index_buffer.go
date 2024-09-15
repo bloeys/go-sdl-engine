@@ -27,9 +27,9 @@ func (ib *IndexBuffer) SetData(values []uint32) {
 	ib.IndexBufCount = int32(len(values))
 
 	if sizeInBytes == 0 {
-		gl.BufferData(gl.ELEMENT_ARRAY_BUFFER, 0, gl.Ptr(nil), BufUsage_Static.ToGL())
+		gl.BufferData(gl.ELEMENT_ARRAY_BUFFER, 0, gl.Ptr(nil), BufUsage_Static_Draw.ToGL())
 	} else {
-		gl.BufferData(gl.ELEMENT_ARRAY_BUFFER, sizeInBytes, gl.Ptr(&values[0]), BufUsage_Static.ToGL())
+		gl.BufferData(gl.ELEMENT_ARRAY_BUFFER, sizeInBytes, gl.Ptr(&values[0]), BufUsage_Static_Draw.ToGL())
 	}
 }
 

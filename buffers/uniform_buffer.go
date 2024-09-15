@@ -728,7 +728,7 @@ func ReflectValueMatchesUniformBufferField(v reflect.Value, ubField *UniformBuff
 	}
 }
 
-func NewUniformBuffer(fields []UniformBufferFieldInput) UniformBuffer {
+func NewUniformBuffer(fields []UniformBufferFieldInput, usage BufUsage) UniformBuffer {
 
 	ub := UniformBuffer{}
 
@@ -740,7 +740,7 @@ func NewUniformBuffer(fields []UniformBufferFieldInput) UniformBuffer {
 	}
 
 	ub.Bind()
-	gl.BufferData(gl.UNIFORM_BUFFER, int(ub.Size), gl.Ptr(nil), gl.STATIC_DRAW)
+	gl.BufferData(gl.UNIFORM_BUFFER, int(ub.Size), gl.Ptr(nil), usage.ToGL())
 	ub.UnBind()
 
 	return ub
