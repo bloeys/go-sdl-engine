@@ -1,6 +1,17 @@
 package nmageimgui
 
 import (
+	"unsafe"
+
+	// The following is included just so we can get
+	// the c imports and cgo configs defined here: https://github.com/AllenDang/cimgui-go/blob/main/sdlbackend/sdl_backend.go
+	//
+	// This is needed because AllenDang/cimgui-go links sdl2 statically, which requires us
+	// to explicitly define all the libs it needs, which isn't normally needed if we were dynamically linking.
+	//
+	// Without this, we get compilation errors as sdl2 can't find libs it relies on.
+	_ "github.com/AllenDang/cimgui-go/sdlbackend"
+
 	imgui "github.com/AllenDang/cimgui-go"
 	"github.com/bloeys/gglm/gglm"
 	"github.com/bloeys/nmage/materials"
@@ -129,7 +140,7 @@ func (i *ImguiInfo) AddFontTTF(fontPath string, fontSize float32, fontConfig *im
 
 	fontConfigToUse := imgui.NewFontConfig()
 	if fontConfig != nil {
-		fontConfigToUse = *fontConfig
+		fontConfigToUse = fontConfig
 	}
 
 	glyphRangesToUse := imgui.NewGlyphRange()
@@ -141,13 +152,13 @@ func (i *ImguiInfo) AddFontTTF(fontPath string, fontSize float32, fontConfig *im
 
 	a := imIO.Fonts()
 	f := a.AddFontFromFileTTFV(fontPath, fontSize, fontConfigToUse, glyphRangesToUse.Data())
-	pixels, width, height, _ := a.GetTextureDataAsAlpha8()
+	pixels, width, height, _ := a.TextureDataAsAlpha8()
 
 	gl.ActiveTexture(gl.TEXTURE0)
 	gl.BindTexture(gl.TEXTURE_2D, *i.TexID)
 	gl.TexImage2D(gl.TEXTURE_2D, 0, gl.RED, int32(width), int32(height), 0, gl.RED, gl.UNSIGNED_BYTE, pixels)
 
-	return f
+	return *f
 }
 
 const DefaultImguiShader = `
@@ -212,7 +223,7 @@ func NewImGui(shaderPath string) ImguiInfo {
 	}
 
 	imguiInfo := ImguiInfo{
-		ImCtx: imgui.CreateContext(),
+		ImCtx: *imgui.CreateContext(),
 		Mat:   imguiMat,
 		TexID: new(uint32),
 	}
@@ -233,11 +244,12 @@ func NewImGui(shaderPath string) ImguiInfo {
 	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
 	gl.PixelStorei(gl.UNPACK_ROW_LENGTH, 0)
 
-	pixels, width, height, _ := io.Fonts().GetTextureDataAsAlpha8()
+	pixels, width, height, _ := io.Fonts().TextureDataAsAlpha8()
 	gl.TexImage2D(gl.TEXTURE_2D, 0, gl.RED, int32(width), int32(height), 0, gl.RED, gl.UNSIGNED_BYTE, pixels)
 
 	// Store our identifier
-	io.Fonts().SetTexID(imgui.TextureID(imguiInfo.TexID))
+
+	io.Fonts().SetTexID(imgui.TextureID{Data: uintptr(unsafe.Pointer(imguiInfo.TexID))})
 
 	//Shader attributes
 	imguiInfo.Mat.Bind()

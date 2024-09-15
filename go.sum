@@ -1,5 +1,7 @@
 github.com/AllenDang/cimgui-go v0.0.0-20230720025235-f2ff398a66b2 h1:3HA/5qD8Rimxz/y1sLyVaM7ws1dzjXzMt4hOBiwHggo=
 github.com/AllenDang/cimgui-go v0.0.0-20230720025235-f2ff398a66b2/go.mod h1:iNfbIyOBN8k3XScMxULbrwYbPsXEAUD0Jb6UwrspQb8=
+github.com/AllenDang/cimgui-go v0.0.0-20240912193335-545751598105 h1:bhXqv2EG5YCLdgkLSFCpqeVz4cCoNbi4RDFrHrwxQ1o=
+github.com/AllenDang/cimgui-go v0.0.0-20240912193335-545751598105/go.mod h1:CYfBRenCaNtSvKVzChYh6gswUSo6c5IUcYeV6eCCRw0=
 github.com/bloeys/assimp-go v0.4.4 h1:Yn5e/RpE0Oes0YMBy8O7KkwAO4R/RpgrZPJCt08dVIU=
 github.com/bloeys/assimp-go v0.4.4/go.mod h1:my3yRxT7CfOztmvi+0svmwbaqw0KFrxaHxncoyaEIP0=
 github.com/bloeys/gglm v0.50.0 h1:DlGLp9z8KMNx+hNR6PjnPmC0HjDRC19QwAKL1iwhOxs=

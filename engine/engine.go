@@ -107,9 +107,9 @@ func (w *Window) handleInputs() {
 	}
 
 	// If a mouse press event came, always pass it as "mouse held this frame", so we don't miss click-release events that are shorter than 1 frame.
-	imIo.SetMouseButtonDown(imgui.MouseButtonLeft, isSdlButtonLeftDown)
-	imIo.SetMouseButtonDown(imgui.MouseButtonRight, isSdlButtonRightDown)
-	imIo.SetMouseButtonDown(imgui.MouseButtonMiddle, isSdlButtonMiddleDown)
+	imIo.SetMouseButtonDown(int(imgui.MouseButtonLeft), isSdlButtonLeftDown)
+	imIo.SetMouseButtonDown(int(imgui.MouseButtonRight), isSdlButtonRightDown)
+	imIo.SetMouseButtonDown(int(imgui.MouseButtonMiddle), isSdlButtonMiddleDown)
 }
 
 func (w *Window) handleWindowResize() {

@@ -908,7 +908,7 @@ func (g *Game) showDebugWindow() {
 
 	imgui.Begin("Debug controls")
 
-	imgui.PushStyleColorVec4(imgui.ColText, imgui.NewColor(1, 1, 0, 1).Value)
+	imgui.PushStyleColorVec4(imgui.ColText, imgui.NewColor(1, 1, 0, 1).FieldValue)
 	imgui.LabelText("FPS", fmt.Sprint(timing.GetAvgFPS()))
 	imgui.PopStyleColor()
 

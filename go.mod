@@ -12,7 +12,7 @@ require (
 )
 
 require (
-	github.com/AllenDang/cimgui-go v0.0.0-20230720025235-f2ff398a66b2
+	github.com/AllenDang/cimgui-go v0.0.0-20240912193335-545751598105
 	github.com/mandykoh/prism v0.35.1
 )
 
