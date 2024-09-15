@@ -1,6 +1,9 @@
 name: build-nmage
 
 on:
+  push:
+    branches:
+      - dev
   create:
   workflow_dispatch:
 
