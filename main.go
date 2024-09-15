@@ -762,7 +762,7 @@ func (g *Game) initUbos() {
 		},
 	)
 
-	fmt.Printf("\n==Lights UBO (id=%d)==\nSize=%d\nFields: %+v\n\n", lightsUbo.Id, lightsUbo.Size, lightsUbo.Fields)
+	// fmt.Printf("\n==Lights UBO (id=%d)==\nSize=%d\nFields: %+v\n\n", lightsUbo.Id, lightsUbo.Size, lightsUbo.Fields)
 
 	lightsUbo.SetBindPoint(1)
 	groundMat.SetUniformBlockBindingPoint("Lights", 1)
