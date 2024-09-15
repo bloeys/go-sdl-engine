@@ -677,7 +677,7 @@ func (g *Game) Init() {
 
 	// Ubos
 	g.initUbos()
-	// testUbos()
+	testUbos()
 
 	// Initial camera update
 	cam.Update()
@@ -873,7 +873,8 @@ func testUbos() {
 		XX   int32
 		Z2   TestUBO3_0
 		XX2  int32
-		Abcd TestUBO3_X
+		Abcd [2]TestUBO3_X
+		XX3  int32
 	}
 
 	ubo3 := buffers.NewUniformBuffer([]buffers.UniformBufferFieldInput{
@@ -890,13 +891,14 @@ func testUbos() {
 			{Id: 8, Type: buffers.DataTypeInt32}, // 04 80
 		}},
 		{Id: 9, Type: buffers.DataTypeInt32}, // 04 96
-		{Id: 10, Type: buffers.DataTypeStruct, Subfields: []buffers.UniformBufferFieldInput{ // 00 112
+		{Id: 10, Type: buffers.DataTypeStruct, Count: 2, Subfields: []buffers.UniformBufferFieldInput{ // 00 112
 			{Id: 11, Type: buffers.DataTypeStruct, Subfields: []buffers.UniformBufferFieldInput{ // 00 112
 				{Id: 12, Type: buffers.DataTypeStruct, Subfields: []buffers.UniformBufferFieldInput{ // 00 112
 					{Id: 13, Type: buffers.DataTypeInt32}, // 04 112
 				}},
 			}},
 		}},
+		{Id: 14, Type: buffers.DataTypeInt32},
 	}) // 116
 	ubo3.Bind()
 
@@ -919,13 +921,23 @@ func testUbos() {
 			X: 8,
 		},
 		XX2: 321,
-		Abcd: TestUBO3_X{
-			V: TestUBO3_Y{
-				V: TestUBO3_Z{
-					V: 9911,
+		Abcd: [2]TestUBO3_X{
+			{
+				V: TestUBO3_Y{
+					V: TestUBO3_Z{
+						V: 9911,
+					},
+				},
+			},
+			{
+				V: TestUBO3_Y{
+					V: TestUBO3_Z{
+						V: 9922,
+					},
 				},
 			},
 		},
+		XX3: 818,
 	}
 
 	ubo3.SetStruct(s3)
@@ -937,7 +949,9 @@ func testUbos() {
 	ubo3Xx := 0
 	ubo3SZ2X := 0
 	ubo3Xx2 := 0
-	ubo3AbcdV := 0
+	ubo3AbcdV1 := 0
+	ubo3AbcdV2 := 0
+	ubo3Xx3 := 0
 	gl.GetBufferSubData(gl.UNIFORM_BUFFER, 0, 4, gl.Ptr(&ubo3F32))
 	gl.GetBufferSubData(gl.UNIFORM_BUFFER, 16, 4, gl.Ptr(&ubo3SF32))
 	gl.GetBufferSubData(gl.UNIFORM_BUFFER, 32, 16, gl.Ptr(&ubo3SV3.Data[0]))
@@ -946,9 +960,11 @@ func testUbos() {
 	gl.GetBufferSubData(gl.UNIFORM_BUFFER, 64, 4, gl.Ptr(&ubo3Xx))
 	gl.GetBufferSubData(gl.UNIFORM_BUFFER, 80, 4, gl.Ptr(&ubo3SZ2X))
 	gl.GetBufferSubData(gl.UNIFORM_BUFFER, 96, 4, gl.Ptr(&ubo3Xx2))
-	gl.GetBufferSubData(gl.UNIFORM_BUFFER, 112, 4, gl.Ptr(&ubo3AbcdV))
+	gl.GetBufferSubData(gl.UNIFORM_BUFFER, 112, 4, gl.Ptr(&ubo3AbcdV1))
+	gl.GetBufferSubData(gl.UNIFORM_BUFFER, 128, 4, gl.Ptr(&ubo3AbcdV2))
+	gl.GetBufferSubData(gl.UNIFORM_BUFFER, 144, 4, gl.Ptr(&ubo3Xx3))
 
-	fmt.Printf("ubo3_f32=%f\nubo3_s_f32=%f\nubo3_s_v3=%s\nubo3_s_zero_x=%d\nubo3_xx=%d\nubo3_z2_x=%d\nubo3_xx2=%d\nubo3_abcd_v=%d\n", ubo3F32, ubo3SF32, ubo3SV3.String(), ubo3SZeroX, ubo3Xx, ubo3SZ2X, ubo3Xx2, ubo3AbcdV)
+	fmt.Printf("ubo3_f32=%f\nubo3_s_f32=%f\nubo3_s_v3=%s\nubo3_s_zero_x=%d\nubo3_xx=%d\nubo3_z2_x=%d\nubo3_xx2=%d\nubo3_abcd_v1=%d\nubo3_abcd_v2=%d\nubo3_xx3=%d\n", ubo3F32, ubo3SF32, ubo3SV3.String(), ubo3SZeroX, ubo3Xx, ubo3SZ2X, ubo3Xx2, ubo3AbcdV1, ubo3AbcdV2, ubo3Xx3)
 }
 
 func (g *Game) initFbos() {
