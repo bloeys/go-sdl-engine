@@ -16,12 +16,13 @@ jobs:
 
       - name: Install assimp-go dll
         run: |
-          New-Item -ItemType Directory -Force -Path C:\Windows\System32
-          Invoke-WebRequest -Uri "https://github.com/bloeys/assimp-go/releases/download/v0.4.2/libassimp-5.dll" -OutFile "C:\Windows\System32\assimp.dll"
+          Invoke-WebRequest -Uri "https://github.com/bloeys/assimp-go/releases/download/v0.4.2/libassimp-5.dll" -OutFile "C:\Windows\System32\libassimp-5.dll"
 
-      - name: Install SDL2
+      - name: Download and setup SDL2
         run: |
-          choco install sdl2 sdl2_image sdl2_ttf sdl2_gfx pkg-config
+          Invoke-WebRequest -Uri "https://github.com/libsdl-org/SDL/releases/download/release-2.30.7/SDL2-devel-2.30.7-mingw.zip" -OutFile "SDL2.zip"
+          Expand-Archive -Path "SDL2.zip" -DestinationPath "SDL2"
+          Copy-Item -Path "SDL2\SDL2-2.30.7\x86_64-w64-mingw32\*" -Destination "C:\msys64\mingw64" -Recurse -Force
 
       - name: Clone nmage
         run: git clone https://github.com/bloeys/nmage
