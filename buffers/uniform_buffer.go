@@ -120,11 +120,7 @@ func addUniformBufferFieldsToArray(startAlignedOffset uint16, arrayToAddTo *[]Un
 			subfieldsAlignedOffset := uint16(addUniformBufferFieldsToArray(startAlignedOffset+alignedOffset, arrayToAddTo, f.Subfields))
 
 			// Pad structs to 16 byte boundary
-			subfieldsAlignmentError := subfieldsAlignedOffset % 16
-			if subfieldsAlignmentError != 0 {
-				subfieldsAlignedOffset += 16 - subfieldsAlignmentError
-			}
-
+			padTo16Boundary(&subfieldsAlignedOffset)
 			alignedOffset += subfieldsAlignedOffset * f.Count
 
 		} else {
@@ -133,6 +129,13 @@ func addUniformBufferFieldsToArray(startAlignedOffset uint16, arrayToAddTo *[]Un
 	}
 
 	return uint32(alignedOffset)
+}
+
+func padTo16Boundary[T uint16 | int | int32](val *T) {
+	alignmentError := *val % 16
+	if alignmentError != 0 {
+		*val += 16 - alignmentError
+	}
 }
 
 func (ub *UniformBuffer) getField(fieldId uint16, fieldType ElementType) UniformBufferField {
@@ -203,10 +206,10 @@ func (ub *UniformBuffer) SetMat4(fieldId uint16, val *gglm.Mat4) {
 }
 
 func (ub *UniformBuffer) SetStruct(inputStruct any) {
-	setStruct(ub.Fields, make([]byte, ub.Size), inputStruct, 1000_000, false)
+	setStruct(ub.Fields, make([]byte, ub.Size), inputStruct, 1000_000, false, 0)
 }
 
-func setStruct(fields []UniformBufferField, buf []byte, inputStruct any, maxFieldsToConsume int, onlyBufWrite bool) (bytesWritten, fieldsConsumed int) {
+func setStruct(fields []UniformBufferField, buf []byte, inputStruct any, maxFieldsToConsume int, onlyBufWrite bool, writeOffset int) (bytesWritten, fieldsConsumed int) {
 
 	if len(fields) == 0 {
 		return
@@ -240,6 +243,7 @@ func setStruct(fields []UniformBufferField, buf []byte, inputStruct any, maxFiel
 		isArray := kind == reflect.Slice || kind == reflect.Array
 		if isArray {
 			elementType = valField.Type().Elem()
+			kind = elementType.Kind()
 		} else {
 			elementType = valField.Type()
 		}
@@ -249,7 +253,7 @@ func setStruct(fields []UniformBufferField, buf []byte, inputStruct any, maxFiel
 		}
 
 		typeMatches := false
-		bytesWritten = int(ubField.AlignedOffset)
+		bytesWritten = int(ubField.AlignedOffset) + writeOffset
 
 		switch ubField.Type {
 
@@ -383,15 +387,42 @@ func setStruct(fields []UniformBufferField, buf []byte, inputStruct any, maxFiel
 			}
 
 		case DataTypeStruct:
+
 			typeMatches = kind == reflect.Struct
 
 			if typeMatches {
 
-				setStructBytesWritten, setStructFieldsConsumed := setStruct(fields[fieldIndex+1:], buf, valField.Interface(), valField.NumField(), true)
+				if isArray {
 
-				bytesWritten += setStructBytesWritten
-				fieldIndex += setStructFieldsConsumed
-				fieldsConsumed += setStructFieldsConsumed
+					offset := 0
+					arrSize := valField.Len()
+					fieldsToUse := fields[fieldIndex+1:]
+					for i := 0; i < arrSize; i++ {
+
+						setStructBytesWritten, setStructFieldsConsumed := setStruct(fieldsToUse, buf, valField.Index(i).Interface(), elementType.NumField(), true, offset*i)
+
+						if offset == 0 {
+							offset = setStructBytesWritten
+							padTo16Boundary(&offset)
+
+							bytesWritten += offset * arrSize
+
+							// Tracking consumed fields is needed because if we have a struct inside another struct
+							// elementType.NumField() will only give us the fields consumed by the first struct,
+							// but we need to count all fields of all nested structs inside this one
+							fieldIndex += setStructFieldsConsumed
+							fieldsConsumed += setStructFieldsConsumed
+						}
+					}
+
+				} else {
+
+					setStructBytesWritten, setStructFieldsConsumed := setStruct(fields[fieldIndex+1:], buf, valField.Interface(), valField.NumField(), true, writeOffset)
+
+					bytesWritten += setStructBytesWritten
+					fieldIndex += setStructFieldsConsumed
+					fieldsConsumed += setStructFieldsConsumed
+				}
 			}
 
 		default:
@@ -411,7 +442,7 @@ func setStruct(fields []UniformBufferField, buf []byte, inputStruct any, maxFiel
 		gl.BufferSubData(gl.UNIFORM_BUFFER, 0, bytesWritten, gl.Ptr(&buf[0]))
 	}
 
-	return bytesWritten - int(fields[0].AlignedOffset), fieldsConsumed
+	return bytesWritten - int(fields[0].AlignedOffset) - writeOffset, fieldsConsumed
 }
 
 func Write32BitIntegerToByteBuf[T uint32 | int32](buf []byte, startIndex *int, val T) {
