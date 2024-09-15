@@ -25,7 +25,7 @@ jobs:
         run: |
           Invoke-WebRequest -Uri "https://github.com/libsdl-org/SDL/releases/download/release-2.30.7/SDL2-devel-2.30.7-mingw.zip" -OutFile "SDL2.zip"
           Expand-Archive -Path "SDL2.zip" -DestinationPath "SDL2"
-          Copy-Item -Path "SDL2\SDL2-2.30.7\x86_64-w64-mingw32\*" -Destination "C:\msys64\mingw64" -Recurse -Force
+          Copy-Item -Path "SDL2\SDL2-2.30.7\x86_64-w64-mingw32" -Destination "C:\msys64\mingw64" -Recurse -Force
 
       - name: Clone nmage
         run: git clone https://github.com/bloeys/nmage
