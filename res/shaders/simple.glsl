@@ -27,8 +27,8 @@ struct PointLight {
     vec3 pos;
     vec3 diffuseColor;
     vec3 specularColor;
-    float falloff;
     float radius;
+    float falloff;
     float maxBias;
     float nearPlane;
     float farPlane;
@@ -50,12 +50,12 @@ layout (std140) uniform GlobalMatrices {
 
 layout (std140) uniform Lights {
     DirLight dirLight;
+    PointLight pointLights[NUM_POINT_LIGHTS];
 };
 
 //
 // Uniforms
 //
-uniform PointLight pointLights[NUM_POINT_LIGHTS];
 uniform SpotLight spotLights[NUM_SPOT_LIGHTS];
 uniform mat4 modelMat;
 uniform mat4 dirLightProjViewMat;
@@ -77,16 +77,6 @@ out vec3 tangentDirLightDir;
 out vec3 tangentSpotLightPositions[NUM_SPOT_LIGHTS];
 out vec3 tangentSpotLightDirections[NUM_SPOT_LIGHTS];
 out vec3 tangentPointLightPositions[NUM_POINT_LIGHTS];
-
-struct Test1 {
-    float ff;
-    vec3 v3;
-};
-
-layout (std140) uniform Test2 {
-    float f1;
-    Test1 s;
-};
 
 void main()
 {
@@ -180,13 +170,12 @@ struct PointLight {
     vec3 pos;
     vec3 diffuseColor;
     vec3 specularColor;
-    float falloff;
     float radius;
+    float falloff;
     float maxBias;
     float nearPlane;
     float farPlane;
 };
-uniform PointLight pointLights[NUM_POINT_LIGHTS];
 uniform samplerCubeArray pointLightCubeShadowMaps;
 
 struct SpotLight {
@@ -207,6 +196,7 @@ layout (std140) uniform GlobalMatrices {
 
 layout (std140) uniform Lights {
     DirLight dirLight;
+    PointLight pointLights[NUM_POINT_LIGHTS];
 };
 
 uniform vec3 ambientColor = vec3(0.2, 0.2, 0.2);

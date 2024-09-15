@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"os"
-	"reflect"
 	"runtime"
 	"runtime/pprof"
 	"strconv"
@@ -98,16 +97,16 @@ type PointLight struct {
 	Radius  float32
 	Falloff float32
 
+	// MaxBias is the max shadow bias applied for this light.
+	// A usual value is 0.05
+	MaxBias float32
+
 	// NearPlane is the distance where if the pixel
 	// is closer to the light than this distance, no shadow will be casted.
 	//
 	// This helps not produce shadows from within objects.
 	// Same idea a camera near plane.
 	NearPlane float32
-
-	// MaxBias is the max shadow bias applied for this light.
-	// A usual value is 0.05
-	MaxBias float32
 
 	// Far plane is the max distance at which shadows from this
 	// light will show.
@@ -217,13 +216,30 @@ type DirLightUboData struct {
 	Dir           gglm.Vec3
 	DiffuseColor  gglm.Vec3
 	SpecularColor gglm.Vec3
-	Shadowmap     int32
 }
+
+type PointLightUboData struct {
+	Pos           gglm.Vec3
+	DiffuseColor  gglm.Vec3
+	SpecularColor gglm.Vec3
+	Radius        float32
+	Falloff       float32
+	MaxBias       float32
+	NearPlane     float32
+	FarPlane      float32
+}
+
 type LightsUboData struct {
-	DirLight DirLightUboData
+	DirLight    DirLightUboData
+	PointLights [POINT_LIGHT_COUNT]PointLightUboData
 }
 
 const (
+
+	// These must match the shader values
+	POINT_LIGHT_COUNT = 8
+	SPOT_LIGHT_COUNT  = 4
+
 	UNSCALED_WINDOW_WIDTH  = 1280
 	UNSCALED_WINDOW_HEIGHT = 720
 
@@ -316,13 +332,13 @@ var (
 		DiffuseColor:  gglm.NewVec3(63.0/255, 63.0/255, 63.0/255),
 		SpecularColor: gglm.NewVec3(1, 1, 1),
 	}
-	pointLights = [...]PointLight{
+	pointLights = [POINT_LIGHT_COUNT]PointLight{
 		{
 			Pos:           gglm.NewVec3(0, 4, -3),
 			DiffuseColor:  gglm.NewVec3(1, 0, 0),
 			SpecularColor: gglm.NewVec3(1, 1, 1),
-			Falloff:       1.0,
 			Radius:        10,
+			Falloff:       1.0,
 			MaxBias:       0.05,
 			NearPlane:     0.2,
 			FarPlane:      20 * pointLightRadiusToFarPlaneRatio,
@@ -331,8 +347,8 @@ var (
 			Pos:           gglm.NewVec3(5, 0, 0),
 			DiffuseColor:  gglm.NewVec3(1, 1, 1),
 			SpecularColor: gglm.NewVec3(1, 1, 1),
-			Falloff:       1.0,
 			Radius:        10,
+			Falloff:       1.0,
 			MaxBias:       0.05,
 			NearPlane:     0.2,
 			FarPlane:      20 * pointLightRadiusToFarPlaneRatio,
@@ -341,8 +357,8 @@ var (
 			Pos:           gglm.NewVec3(-3, 4, 3),
 			DiffuseColor:  gglm.NewVec3(1, 1, 1),
 			SpecularColor: gglm.NewVec3(1, 1, 1),
-			Falloff:       1.0,
 			Radius:        10,
+			Falloff:       1.0,
 			MaxBias:       0.05,
 			NearPlane:     0.2,
 			FarPlane:      20 * pointLightRadiusToFarPlaneRatio,
@@ -350,7 +366,7 @@ var (
 	}
 
 	spotLightDir0 = gglm.NewVec3(1.5, -0.9, 0)
-	spotLights    = [...]SpotLight{
+	spotLights    = [SPOT_LIGHT_COUNT]SpotLight{
 		{
 			Pos:           gglm.NewVec3(-4, 7, 5),
 			Dir:           *spotLightDir0.Normalize(),
@@ -673,15 +689,16 @@ func (g *Game) Init() {
 
 	// Fbos and lights
 	g.initFbos()
-	g.updateLights()
+	g.applyLightUpdates()
 
 	// Ubos
 	g.initUbos()
-	testUbos()
 
 	// Initial camera update
 	cam.Update()
 	updateAllProjViewMats(cam.ProjMat, cam.ViewMat)
+
+	g.applyLightUpdates()
 }
 
 func (g *Game) initUbos() {
@@ -701,270 +718,38 @@ func (g *Game) initUbos() {
 
 	lightsUbo = buffers.NewUniformBuffer(
 		[]buffers.UniformBufferFieldInput{
-			{Id: 0, Type: buffers.DataTypeStruct, Subfields: []buffers.UniformBufferFieldInput{
-				{Id: 1, Type: buffers.DataTypeVec3},
-				{Id: 2, Type: buffers.DataTypeVec3},
-				{Id: 3, Type: buffers.DataTypeVec3},
-				{Id: 4, Type: buffers.DataTypeInt32},
-			}},
+			// Dir light
+			{Id: 0, Type: buffers.DataTypeStruct,
+				Subfields: []buffers.UniformBufferFieldInput{
+					{Id: 1, Type: buffers.DataTypeVec3}, // 12 00
+					{Id: 2, Type: buffers.DataTypeVec3}, // 12 16
+					{Id: 3, Type: buffers.DataTypeVec3}, // 12 32
+				},
+			},
+			// Point lights
+			{Id: 5, Type: buffers.DataTypeStruct,
+				Count: POINT_LIGHT_COUNT,
+				Subfields: []buffers.UniformBufferFieldInput{
+					{Id: 6, Type: buffers.DataTypeVec3},     // 12 48
+					{Id: 7, Type: buffers.DataTypeVec3},     // 12 64
+					{Id: 8, Type: buffers.DataTypeVec3},     // 12 80
+					{Id: 9, Type: buffers.DataTypeFloat32},  // 04 92
+					{Id: 10, Type: buffers.DataTypeFloat32}, // 04 96
+					{Id: 11, Type: buffers.DataTypeFloat32}, // 04 100
+					{Id: 12, Type: buffers.DataTypeFloat32}, // 04 104
+					{Id: 13, Type: buffers.DataTypeFloat32}, // 04 108
+				},
+			},
 		},
 	)
+
+	fmt.Printf("\n==Lights UBO (id=%d)==\nSize=%d\nFields: %+v\n\n", lightsUbo.Id, lightsUbo.Size, lightsUbo.Fields)
 
 	lightsUbo.SetBindPoint(1)
 	groundMat.SetUniformBlockBindingPoint("Lights", 1)
 	whiteMat.SetUniformBlockBindingPoint("Lights", 1)
 	containerMat.SetUniformBlockBindingPoint("Lights", 1)
 	palleteMat.SetUniformBlockBindingPoint("Lights", 1)
-}
-
-func testUbos() {
-
-	xx := []int{1, 2, 3, 4}
-	xx2 := [4]int{1, 2, 3, 4}
-	fmt.Printf("XX: %v; Kind: %v; Elem Type: %v\n", reflect.ValueOf(xx), reflect.ValueOf(xx).Type().Kind(), reflect.ValueOf(xx).Type().Elem().Kind())
-	fmt.Printf("XX: %v; Kind: %v; Elem Type: %v\n", reflect.ValueOf(xx2), reflect.ValueOf(xx).Kind(), reflect.ValueOf(xx).Type().Elem().Kind())
-
-	ubo := buffers.NewUniformBuffer([]buffers.UniformBufferFieldInput{
-		{Id: 0, Type: buffers.DataTypeFloat32}, // 04 00
-		{Id: 1, Type: buffers.DataTypeVec3},    // 16 16
-		{Id: 2, Type: buffers.DataTypeFloat32}, // 04 32
-		{Id: 3, Type: buffers.DataTypeMat2},    // 32 48
-	}) // Total size: 48+32 = 80
-	ubo.Bind()
-
-	println("!!!!!!!!!!!!! Id:", ubo.Id, "; Size:", ubo.Size)
-	fmt.Printf("%+v\n", ubo.Fields)
-
-	ubo.SetFloat32(0, 99)
-	ubo.SetFloat32(2, 199)
-	ubo.SetVec3(1, &gglm.Vec3{Data: [3]float32{33, 33, 33}})
-	ubo.SetMat2(3, &gglm.Mat2{Data: [2][2]float32{{1, 3}, {2, 4}}})
-
-	var v gglm.Vec3
-	var m2 gglm.Mat2
-	var x, x2 float32
-	gl.GetBufferSubData(gl.UNIFORM_BUFFER, 0, 4, gl.Ptr(&x))
-	gl.GetBufferSubData(gl.UNIFORM_BUFFER, 32, 4, gl.Ptr(&x2))
-	gl.GetBufferSubData(gl.UNIFORM_BUFFER, 16, 12, gl.Ptr(&v.Data[0]))
-	gl.GetBufferSubData(gl.UNIFORM_BUFFER, 48, 16, gl.Ptr(&m2.Data[0][0]))
-
-	fmt.Printf("x=%f; x2=%f; v3=%s; m2=%s\n", x, x2, v.String(), m2.String())
-
-	ubo.SetVec3(1, &gglm.Vec3{Data: [3]float32{-123, 33, 33}})
-	gl.GetBufferSubData(gl.UNIFORM_BUFFER, 16, 12, gl.Ptr(&v.Data[0]))
-
-	type TestUBO struct {
-		FirstF32  float32
-		V3        gglm.Vec3
-		SecondF32 float32
-		M2        gglm.Mat2
-	}
-
-	s := TestUBO{
-		FirstF32:  1.5,
-		V3:        gglm.Vec3{Data: [3]float32{11, 22, 33}},
-		SecondF32: 9.5,
-		M2:        gglm.Mat2{Data: [2][2]float32{{6, 8}, {7, 9}}},
-	}
-
-	ubo.SetStruct(s)
-
-	gl.GetBufferSubData(gl.UNIFORM_BUFFER, 0, 4, gl.Ptr(&x))
-	gl.GetBufferSubData(gl.UNIFORM_BUFFER, 32, 4, gl.Ptr(&x2))
-	gl.GetBufferSubData(gl.UNIFORM_BUFFER, 16, 12, gl.Ptr(&v.Data[0]))
-	gl.GetBufferSubData(gl.UNIFORM_BUFFER, 48, 16, gl.Ptr(&m2.Data[0][0]))
-
-	fmt.Printf("x=%f; x2=%f; v3=%s; m2=%s\n", x, x2, v.String(), m2.String())
-
-	//
-	// Ubo2
-	//
-	type TestUBO2 struct {
-		F32       float32
-		V3        gglm.Vec3
-		F32Slice  []float32
-		I32       int32
-		I32Slice  []int32
-		V3Slice   []gglm.Vec3
-		V4Slice   []gglm.Vec4
-		Mat2Slice []gglm.Mat2
-		Mat3Slice []gglm.Mat3
-		Mat4Slice []gglm.Mat4
-	}
-
-	s2 := TestUBO2{
-		F32:       1.5,
-		V3:        gglm.Vec3{Data: [3]float32{11, 22, 33}},
-		F32Slice:  []float32{-1, -2, -3, -4},
-		I32:       55,
-		I32Slice:  []int32{41, 42, 43},
-		V3Slice:   []gglm.Vec3{gglm.NewVec3(1.1, 1.2, 1.3), gglm.NewVec3(2.1, 2.2, 2.3)},
-		V4Slice:   []gglm.Vec4{gglm.NewVec4(1.1, 1.2, 1.3, 1.4), gglm.NewVec4(2.1, 2.2, 2.3, 2.4)},
-		Mat2Slice: []gglm.Mat2{gglm.NewMat2Diag(1.1), gglm.NewMat2Diag(2.1)},
-		Mat3Slice: []gglm.Mat3{gglm.NewMat3Diag(3.1), gglm.NewMat3Diag(4.1)},
-		Mat4Slice: []gglm.Mat4{gglm.NewMat4Diag(5.1), gglm.NewMat4Diag(6.1)},
-	}
-
-	ubo2 := buffers.NewUniformBuffer([]buffers.UniformBufferFieldInput{
-		{Id: 0, Type: buffers.DataTypeFloat32},
-		{Id: 1, Type: buffers.DataTypeVec3},
-		{Id: 2, Type: buffers.DataTypeFloat32, Count: 4},
-		{Id: 3, Type: buffers.DataTypeInt32},
-		{Id: 4, Type: buffers.DataTypeInt32, Count: 3},
-		{Id: 5, Type: buffers.DataTypeVec3, Count: 2},
-		{Id: 6, Type: buffers.DataTypeVec4, Count: 2},
-		{Id: 7, Type: buffers.DataTypeMat2, Count: 2},
-		{Id: 8, Type: buffers.DataTypeMat3, Count: 2},
-		{Id: 9, Type: buffers.DataTypeMat4, Count: 2},
-	})
-	ubo2.Bind()
-
-	ubo2.SetStruct(s2)
-
-	var someInt32 int32
-	fArr := [4 * 4]float32{}
-	i32Arr := [3 * 4]int32{}
-	vec3Slice := [2 * 4]float32{}
-	vec4Slice := [2 * 4]float32{}
-	mat2Slice := [2 * 2 * 4]float32{}
-	mat3Slice := [2 * 3 * 4]float32{}
-	mat4Slice := [2 * 4 * 4]float32{}
-	gl.GetBufferSubData(gl.UNIFORM_BUFFER, 0, 4, gl.Ptr(&x))
-	gl.GetBufferSubData(gl.UNIFORM_BUFFER, 16, 12, gl.Ptr(&v.Data[0]))
-	gl.GetBufferSubData(gl.UNIFORM_BUFFER, 32, 16*4, gl.Ptr(&fArr[0]))
-	gl.GetBufferSubData(gl.UNIFORM_BUFFER, 32+16*4, 4, gl.Ptr(&someInt32))
-	gl.GetBufferSubData(gl.UNIFORM_BUFFER, 32+16*4+16, 16*3, gl.Ptr(&i32Arr[0]))
-	gl.GetBufferSubData(gl.UNIFORM_BUFFER, 32+16*4+16+16*3, 16*2, gl.Ptr(&vec3Slice[0]))
-	gl.GetBufferSubData(gl.UNIFORM_BUFFER, 32+16*4+16+16*3+16*2, 16*2, gl.Ptr(&vec4Slice[0]))
-	gl.GetBufferSubData(gl.UNIFORM_BUFFER, 32+16*4+16+16*3+16*2+16*2, 2*16*2, gl.Ptr(&mat2Slice[0]))
-	gl.GetBufferSubData(gl.UNIFORM_BUFFER, 32+16*4+16+16*3+16*2+16*2+2*16*2, 2*16*3, gl.Ptr(&mat3Slice[0]))
-	gl.GetBufferSubData(gl.UNIFORM_BUFFER, 32+16*4+16+16*3+16*2+16*2+2*16*2+2*16*3, 2*16*4, gl.Ptr(&mat4Slice[0]))
-
-	fmt.Printf("f32=%f; v3=%s; f32Slice=%v; i32=%d; i32Arr=%v; v3Slice=%v; v4Slice=%v; mat2Slice=%v; mat3Slice=%v; mat4Slice=%v\n", x, v.String(), fArr, someInt32, i32Arr, vec3Slice, vec4Slice, mat2Slice, mat3Slice, mat4Slice)
-
-	//
-	// Ubo3
-	//
-	type TestUBO3_Z struct {
-		V int32
-	}
-
-	type TestUBO3_Y struct {
-		V TestUBO3_Z
-	}
-
-	type TestUBO3_X struct {
-		V TestUBO3_Y
-	}
-
-	type TestUBO3_0 struct {
-		X int32
-	}
-
-	type TestUBO3_1 struct {
-		F32  float32
-		V3   gglm.Vec3
-		Zero TestUBO3_0
-	}
-
-	type TestUBO3_2 struct {
-		F32  float32
-		S    TestUBO3_1
-		XX   int32
-		Z2   TestUBO3_0
-		XX2  int32
-		Abcd [2]TestUBO3_X
-		XX3  int32
-	}
-
-	ubo3 := buffers.NewUniformBuffer([]buffers.UniformBufferFieldInput{
-		{Id: 0, Type: buffers.DataTypeFloat32}, // 04 00
-		{Id: 1, Type: buffers.DataTypeStruct, Subfields: []buffers.UniformBufferFieldInput{ // 00 16
-			{Id: 2, Type: buffers.DataTypeFloat32}, // 04 16
-			{Id: 3, Type: buffers.DataTypeVec3},    // 16 32
-			{Id: 4, Type: buffers.DataTypeStruct, Subfields: []buffers.UniformBufferFieldInput{ // 00 48
-				{Id: 5, Type: buffers.DataTypeInt32}, // 04 48
-			}},
-		}},
-		{Id: 6, Type: buffers.DataTypeInt32}, // 04 64
-		{Id: 7, Type: buffers.DataTypeStruct, Subfields: []buffers.UniformBufferFieldInput{ // 00 80
-			{Id: 8, Type: buffers.DataTypeInt32}, // 04 80
-		}},
-		{Id: 9, Type: buffers.DataTypeInt32}, // 04 96
-		{Id: 10, Type: buffers.DataTypeStruct, Count: 2, Subfields: []buffers.UniformBufferFieldInput{ // 00 112
-			{Id: 11, Type: buffers.DataTypeStruct, Subfields: []buffers.UniformBufferFieldInput{ // 00 112
-				{Id: 12, Type: buffers.DataTypeStruct, Subfields: []buffers.UniformBufferFieldInput{ // 00 112
-					{Id: 13, Type: buffers.DataTypeInt32}, // 04 112
-				}},
-			}},
-		}},
-		{Id: 14, Type: buffers.DataTypeInt32},
-	}) // 116
-	ubo3.Bind()
-
-	ubo3.SetBindPoint(2)
-	groundMat.SetUniformBlockBindingPoint("Test2", 2)
-
-	fmt.Printf("\n==UBO3 (id=%d)==\nSize=%d\nFields: %+v\n\n", ubo3.Id, ubo3.Size, ubo3.Fields)
-
-	s3 := TestUBO3_2{
-		F32: 76.1,
-		S: TestUBO3_1{
-			F32: 89.9,
-			V3:  gglm.NewVec3(7.1, 7.2, 7.3),
-			Zero: TestUBO3_0{
-				X: 33,
-			},
-		},
-		XX: 41,
-		Z2: TestUBO3_0{
-			X: 8,
-		},
-		XX2: 321,
-		Abcd: [2]TestUBO3_X{
-			{
-				V: TestUBO3_Y{
-					V: TestUBO3_Z{
-						V: 9911,
-					},
-				},
-			},
-			{
-				V: TestUBO3_Y{
-					V: TestUBO3_Z{
-						V: 9922,
-					},
-				},
-			},
-		},
-		XX3: 818,
-	}
-
-	ubo3.SetStruct(s3)
-
-	ubo3F32 := float32(0.0)
-	ubo3SF32 := float32(0.0)
-	ubo3SV3 := gglm.Vec3{}
-	ubo3SZeroX := 0
-	ubo3Xx := 0
-	ubo3SZ2X := 0
-	ubo3Xx2 := 0
-	ubo3AbcdV1 := 0
-	ubo3AbcdV2 := 0
-	ubo3Xx3 := 0
-	gl.GetBufferSubData(gl.UNIFORM_BUFFER, 0, 4, gl.Ptr(&ubo3F32))
-	gl.GetBufferSubData(gl.UNIFORM_BUFFER, 16, 4, gl.Ptr(&ubo3SF32))
-	gl.GetBufferSubData(gl.UNIFORM_BUFFER, 32, 16, gl.Ptr(&ubo3SV3.Data[0]))
-	gl.GetBufferSubData(gl.UNIFORM_BUFFER, 48, 4, gl.Ptr(&ubo3SZeroX))
-	gl.GetBufferSubData(gl.UNIFORM_BUFFER, 64, 4, gl.Ptr(&ubo3Xx))
-	gl.GetBufferSubData(gl.UNIFORM_BUFFER, 64, 4, gl.Ptr(&ubo3Xx))
-	gl.GetBufferSubData(gl.UNIFORM_BUFFER, 80, 4, gl.Ptr(&ubo3SZ2X))
-	gl.GetBufferSubData(gl.UNIFORM_BUFFER, 96, 4, gl.Ptr(&ubo3Xx2))
-	gl.GetBufferSubData(gl.UNIFORM_BUFFER, 112, 4, gl.Ptr(&ubo3AbcdV1))
-	gl.GetBufferSubData(gl.UNIFORM_BUFFER, 128, 4, gl.Ptr(&ubo3AbcdV2))
-	gl.GetBufferSubData(gl.UNIFORM_BUFFER, 144, 4, gl.Ptr(&ubo3Xx3))
-
-	fmt.Printf("ubo3_f32=%f\nubo3_s_f32=%f\nubo3_s_v3=%s\nubo3_s_zero_x=%d\nubo3_xx=%d\nubo3_z2_x=%d\nubo3_xx2=%d\nubo3_abcd_v1=%d\nubo3_abcd_v2=%d\nubo3_xx3=%d\n", ubo3F32, ubo3SF32, ubo3SV3.String(), ubo3SZeroX, ubo3Xx, ubo3SZ2X, ubo3Xx2, ubo3AbcdV1, ubo3AbcdV2, ubo3Xx3)
 }
 
 func (g *Game) initFbos() {
@@ -1031,73 +816,22 @@ func (g *Game) initFbos() {
 	assert.T(hdrFbo.IsComplete(), "Hdr fbo is not complete after init")
 }
 
-func (g *Game) updateLights() {
+// applyLightUpdates updates materials and light ubo using
+// data from the game's light structs
+func (g *Game) applyLightUpdates() {
 
 	// Directional light
-	lightsUboData.DirLight = DirLightUboData{
-		Dir:           dirLight.Dir,
-		DiffuseColor:  dirLight.DiffuseColor,
-		SpecularColor: dirLight.SpecularColor,
-		Shadowmap:     int32(dirLightDepthMapFbo.Attachments[0].Id),
-	}
-	whiteMat.ShadowMapTex1 = uint32(lightsUboData.DirLight.Shadowmap)
-	containerMat.ShadowMapTex1 = uint32(lightsUboData.DirLight.Shadowmap)
-	groundMat.ShadowMapTex1 = uint32(lightsUboData.DirLight.Shadowmap)
-	palleteMat.ShadowMapTex1 = uint32(lightsUboData.DirLight.Shadowmap)
+	lightsUboData.DirLight = DirLightUboData(dirLight)
+	whiteMat.ShadowMapTex1 = dirLightDepthMapFbo.Attachments[0].Id
+	containerMat.ShadowMapTex1 = dirLightDepthMapFbo.Attachments[0].Id
+	groundMat.ShadowMapTex1 = dirLightDepthMapFbo.Attachments[0].Id
+	palleteMat.ShadowMapTex1 = dirLightDepthMapFbo.Attachments[0].Id
 
 	// Point lights
 	for i := 0; i < len(pointLights); i++ {
 
 		p := &pointLights[i]
-		indexString := "pointLights[" + strconv.Itoa(i) + "]"
-
-		posStr := indexString + ".pos"
-		whiteMat.SetUnifVec3(posStr, &p.Pos)
-		containerMat.SetUnifVec3(posStr, &p.Pos)
-		groundMat.SetUnifVec3(posStr, &p.Pos)
-		palleteMat.SetUnifVec3(posStr, &p.Pos)
-
-		diffuseStr := indexString + ".diffuseColor"
-		whiteMat.SetUnifVec3(diffuseStr, &p.DiffuseColor)
-		containerMat.SetUnifVec3(diffuseStr, &p.DiffuseColor)
-		groundMat.SetUnifVec3(diffuseStr, &p.DiffuseColor)
-		palleteMat.SetUnifVec3(diffuseStr, &p.DiffuseColor)
-
-		specularStr := indexString + ".specularColor"
-		whiteMat.SetUnifVec3(specularStr, &p.SpecularColor)
-		containerMat.SetUnifVec3(specularStr, &p.SpecularColor)
-		groundMat.SetUnifVec3(specularStr, &p.SpecularColor)
-		palleteMat.SetUnifVec3(specularStr, &p.SpecularColor)
-
-		falloffStr := indexString + ".falloff"
-		whiteMat.SetUnifFloat32(falloffStr, p.Falloff)
-		containerMat.SetUnifFloat32(falloffStr, p.Falloff)
-		groundMat.SetUnifFloat32(falloffStr, p.Falloff)
-		palleteMat.SetUnifFloat32(falloffStr, p.Falloff)
-
-		radiusStr := indexString + ".radius"
-		whiteMat.SetUnifFloat32(radiusStr, p.Radius)
-		containerMat.SetUnifFloat32(radiusStr, p.Radius)
-		groundMat.SetUnifFloat32(radiusStr, p.Radius)
-		palleteMat.SetUnifFloat32(radiusStr, p.Radius)
-
-		maxBiasStr := indexString + ".maxBias"
-		whiteMat.SetUnifFloat32(maxBiasStr, p.MaxBias)
-		containerMat.SetUnifFloat32(maxBiasStr, p.MaxBias)
-		groundMat.SetUnifFloat32(maxBiasStr, p.MaxBias)
-		palleteMat.SetUnifFloat32(maxBiasStr, p.MaxBias)
-
-		nearPlaneStr := indexString + ".nearPlane"
-		whiteMat.SetUnifFloat32(nearPlaneStr, p.NearPlane)
-		containerMat.SetUnifFloat32(nearPlaneStr, p.NearPlane)
-		groundMat.SetUnifFloat32(nearPlaneStr, p.NearPlane)
-		palleteMat.SetUnifFloat32(nearPlaneStr, p.NearPlane)
-
-		farPlaneStr := indexString + ".farPlane"
-		whiteMat.SetUnifFloat32(farPlaneStr, p.FarPlane)
-		containerMat.SetUnifFloat32(farPlaneStr, p.FarPlane)
-		groundMat.SetUnifFloat32(farPlaneStr, p.FarPlane)
-		palleteMat.SetUnifFloat32(farPlaneStr, p.FarPlane)
+		lightsUboData.PointLights[i] = PointLightUboData(*p)
 	}
 
 	whiteMat.CubemapArrayTex = pointLightDepthMapFbo.Attachments[0].Id
@@ -1289,73 +1023,29 @@ func (g *Game) showDebugWindow() {
 				continue
 			}
 
-			indexString := "pointLights[" + indexNumString + "]"
-
 			if imgui.DragFloat3("Pos", &pl.Pos.Data) {
-
-				posStr := indexString + ".pos"
-
-				whiteMat.SetUnifVec3(posStr, &pl.Pos)
-				containerMat.SetUnifVec3(posStr, &pl.Pos)
-				groundMat.SetUnifVec3(posStr, &pl.Pos)
-				palleteMat.SetUnifVec3(posStr, &pl.Pos)
+				updateLights = true
 			}
 
 			if imgui.ColorEdit3("Diffuse Color", &pl.DiffuseColor.Data) {
-
-				diffStr := indexString + ".diffuseColor"
-
-				whiteMat.SetUnifVec3(diffStr, &pl.DiffuseColor)
-				containerMat.SetUnifVec3(diffStr, &pl.DiffuseColor)
-				groundMat.SetUnifVec3(diffStr, &pl.DiffuseColor)
-				palleteMat.SetUnifVec3(diffStr, &pl.DiffuseColor)
+				updateLights = true
 			}
 
 			if imgui.ColorEdit3("Specular Color", &pl.SpecularColor.Data) {
-
-				specularStr := indexString + ".specularColor"
-
-				whiteMat.SetUnifVec3(specularStr, &pl.SpecularColor)
-				containerMat.SetUnifVec3(specularStr, &pl.SpecularColor)
-				groundMat.SetUnifVec3(specularStr, &pl.SpecularColor)
-				palleteMat.SetUnifVec3(specularStr, &pl.SpecularColor)
+				updateLights = true
 			}
 
 			if imgui.DragFloatV("Falloff", &pl.Falloff, 0.1, 0, 100, "%.3f", imgui.SliderFlagsNone) {
-
-				falloffStr := indexString + ".falloff"
-
-				whiteMat.SetUnifFloat32(falloffStr, pl.Falloff)
-				containerMat.SetUnifFloat32(falloffStr, pl.Falloff)
-				groundMat.SetUnifFloat32(falloffStr, pl.Falloff)
-				palleteMat.SetUnifFloat32(falloffStr, pl.Falloff)
+				updateLights = true
 			}
 
 			if imgui.DragFloatV("Radius", &pl.Radius, 0.2, 0, 500, "%.3f", imgui.SliderFlagsNone) {
-
-				radiusStr := indexString + ".radius"
-
-				whiteMat.SetUnifFloat32(radiusStr, pl.Radius)
-				containerMat.SetUnifFloat32(radiusStr, pl.Radius)
-				groundMat.SetUnifFloat32(radiusStr, pl.Radius)
-				palleteMat.SetUnifFloat32(radiusStr, pl.Radius)
-
-				farPlaneStr := indexString + ".farPlane"
+				updateLights = true
 				pl.FarPlane = pl.Radius * pointLightRadiusToFarPlaneRatio
-
-				whiteMat.SetUnifFloat32(farPlaneStr, pl.FarPlane)
-				containerMat.SetUnifFloat32(farPlaneStr, pl.FarPlane)
-				groundMat.SetUnifFloat32(farPlaneStr, pl.FarPlane)
-				palleteMat.SetUnifFloat32(farPlaneStr, pl.FarPlane)
 			}
 
 			if imgui.DragFloatV("Max Bias", &pl.MaxBias, 0.01, 0, 10, "%.3f", imgui.SliderFlagsNone) {
-
-				maxBiasStr := indexString + ".maxBias"
-				whiteMat.SetUnifFloat32(maxBiasStr, pl.MaxBias)
-				containerMat.SetUnifFloat32(maxBiasStr, pl.MaxBias)
-				groundMat.SetUnifFloat32(maxBiasStr, pl.MaxBias)
-				palleteMat.SetUnifFloat32(maxBiasStr, pl.MaxBias)
+				updateLights = true
 			}
 
 			imgui.TreePop()
@@ -1443,7 +1133,7 @@ func (g *Game) showDebugWindow() {
 	}
 
 	if updateLights {
-		g.updateLights()
+		g.applyLightUpdates()
 	}
 
 	// Demo fbo

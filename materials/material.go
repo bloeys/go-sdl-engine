@@ -146,7 +146,8 @@ func (m *Material) GetAttribLoc(attribName string) int32 {
 		return loc
 	}
 
-	loc = gl.GetAttribLocation(m.ShaderProg.Id, gl.Str(attribName+"\x00"))
+	name := gl.Str(attribName + "\x00")
+	loc = gl.GetAttribLocation(m.ShaderProg.Id, name)
 	assert.T(loc != -1, "Attribute '"+attribName+"' doesn't exist on material "+m.Name)
 	m.AttribLocs[attribName] = loc
 	return loc
@@ -159,7 +160,8 @@ func (m *Material) GetUnifLoc(uniformName string) int32 {
 		return loc
 	}
 
-	loc = gl.GetUniformLocation(m.ShaderProg.Id, gl.Str(uniformName+"\x00"))
+	name := gl.Str(uniformName + "\x00")
+	loc = gl.GetUniformLocation(m.ShaderProg.Id, name)
 	assert.T(loc != -1, "Uniform '"+uniformName+"' doesn't exist on material "+m.Name)
 	m.UnifLocs[uniformName] = loc
 	return loc

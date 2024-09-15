@@ -173,7 +173,7 @@ func (dt ElementType) Size() int32 {
 	}
 }
 
-func (dt ElementType) GlStd140BaseAlignment() uint8 {
+func (dt ElementType) GlStd140SizeBytes() uint8 {
 
 	switch dt {
 
@@ -187,22 +187,22 @@ func (dt ElementType) GlStd140BaseAlignment() uint8 {
 	case DataTypeVec2:
 		return 4 * 2
 
-		// Vec3 has the same alignment as vec4
 	case DataTypeVec3:
-		fallthrough
+		return 4 * 3
+
 	case DataTypeVec4:
 		return 4 * 4
 
 		// Matrices follow: (vec4Alignment) * numColumns
 	case DataTypeMat2:
-		return (4 * 4) * 2
+		return 2 * 2 * 4
 	case DataTypeMat3:
-		return (4 * 4) * 3
+		return 3 * 3 * 4
 	case DataTypeMat4:
-		return (4 * 4) * 4
+		return 4 * 4 * 4
 
 	case DataTypeStruct:
-		logging.ErrLog.Fatalf("ElementType.GlStd140BaseAlignment of DataTypeStruct is not supported")
+		logging.ErrLog.Fatalf("ElementType.GlStd140SizeBytes of DataTypeStruct is not supported")
 		return 0
 
 	default:

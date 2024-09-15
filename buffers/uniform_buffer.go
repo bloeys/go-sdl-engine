@@ -88,6 +88,8 @@ func addUniformBufferFieldsToArray(startAlignedOffset uint16, arrayToAddTo *[]Un
 		// offset + (boundary - alignErr) == 100 + (16 - 4) == 112; 112 % 16 == 0, meaning its a boundary
 		//
 		// Note that arrays of scalars/vectors are always aligned to 16 bytes, like a vec4
+		//
+		// Official spec and full details in subsection 'Standard Uniform Block Layout' at http://www.opengl.org/registry/specs/ARB/uniform_buffer_object.txt
 		var alignmentBoundary uint16 = 16
 		if f.Count == 1 {
 			alignmentBoundary = f.Type.GlStd140AlignmentBoundary()
@@ -124,7 +126,19 @@ func addUniformBufferFieldsToArray(startAlignedOffset uint16, arrayToAddTo *[]Un
 			alignedOffset += subfieldsAlignedOffset * f.Count
 
 		} else {
-			alignedOffset = newField.AlignedOffset + alignmentBoundary*f.Count*multiplier - startAlignedOffset
+
+			// Elements advance the alignedOffset by their actual byte size.
+			// Aligned offset is padded if the place its at is not aligned to the boundary required by the next element.
+			//
+			// The exception is structs, because fields after a struct field are always aligned at a 16 byte boundary.
+			//
+			// For example, a vec3 starting at offset 80, taking 12 bytes, would put the aligned offset at 92.
+			// If the next element is a float32 (alignment boundary = 4) then no padding is required and
+			// the float will start at 92 and end at 96.
+			// However, if the element after the vec3 is a vec3 (alignment boundary = 16), then it would require
+			// a padding of 4 bytes so that it can start at 96, which is aligned to 16. In this case the second vec3
+			// would start at 96 and end at 96+12=108.
+			alignedOffset = newField.AlignedOffset + uint16(f.Type.GlStd140SizeBytes())*f.Count*multiplier - startAlignedOffset
 		}
 	}
 
@@ -224,8 +238,8 @@ func setStruct(fields []UniformBufferField, buf []byte, inputStruct any, maxFiel
 		logging.ErrLog.Panicf("UniformBuffer.SetStruct called with a value that is not a struct. Val=%v\n", inputStruct)
 	}
 
+	// Needed because fieldIndex can move faster than struct fields in case of struct fields
 	structFieldIndex := 0
-	// structFieldCount := structVal.NumField()
 	for fieldIndex := 0; fieldIndex < len(fields) && fieldIndex < maxFieldsToConsume; fieldIndex++ {
 
 		ubField := &fields[fieldIndex]
