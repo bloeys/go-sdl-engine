@@ -14,22 +14,14 @@ layout(location=3) in vec2 vertUV0In;
 layout(location=4) in vec3 vertColorIn;
 
 //
-// Uniforms
+// UBOs
 //
-uniform vec3 camPos;
-uniform mat4 modelMat;
-uniform mat3 normalMat;
-uniform mat4 projViewMat;
-uniform mat4 dirLightProjViewMat;
-uniform mat4 spotLightProjViewMats[NUM_SPOT_LIGHTS];
-
 struct DirLight {
     vec3 dir;
     vec3 diffuseColor;
     vec3 specularColor;
-    sampler2D shadowMap;
 };
-uniform DirLight dirLight;
+uniform sampler2D dirLightShadowMap;
 
 struct PointLight {
     vec3 pos;
@@ -41,7 +33,6 @@ struct PointLight {
     float nearPlane;
     float farPlane;
 };
-uniform PointLight pointLights[NUM_POINT_LIGHTS];
 
 struct SpotLight {
     vec3 pos;
@@ -51,7 +42,24 @@ struct SpotLight {
     float innerCutoff;
     float outerCutoff;
 };
+
+layout (std140) uniform GlobalMatrices {
+    vec3 camPos;
+    mat4 projViewMat;
+};
+
+layout (std140) uniform Lights {
+    DirLight dirLight;
+};
+
+//
+// Uniforms
+//
+uniform PointLight pointLights[NUM_POINT_LIGHTS];
 uniform SpotLight spotLights[NUM_SPOT_LIGHTS];
+uniform mat4 modelMat;
+uniform mat4 dirLightProjViewMat;
+uniform mat4 spotLightProjViewMats[NUM_SPOT_LIGHTS];
 
 //
 // Outputs
@@ -165,9 +173,8 @@ struct DirLight {
     vec3 dir;
     vec3 diffuseColor;
     vec3 specularColor;
-    sampler2D shadowMap;
 };
-uniform DirLight dirLight;
+uniform sampler2D dirLightShadowMap;
 
 struct PointLight {
     vec3 pos;
@@ -192,6 +199,15 @@ struct SpotLight {
 };
 uniform SpotLight spotLights[NUM_SPOT_LIGHTS];
 uniform sampler2DArray spotLightShadowMaps;
+
+layout (std140) uniform GlobalMatrices {
+    vec3 camPos;
+    mat4 projViewMat;
+};
+
+layout (std140) uniform Lights {
+    DirLight dirLight;
+};
 
 uniform vec3 ambientColor = vec3(0.2, 0.2, 0.2);
 
@@ -260,7 +276,7 @@ vec3 CalcDirLight()
     vec3 finalSpecular = specularAmount * dirLight.specularColor * specularTexColor.rgb;
 
     // Shadow
-    float shadow = CalcDirShadow(dirLight.shadowMap, lightDir);
+    float shadow = CalcDirShadow(dirLightShadowMap, lightDir);
 
     return (finalDiffuse + finalSpecular) * (1 - shadow);
 }

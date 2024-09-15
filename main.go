@@ -44,12 +44,11 @@ import (
 		- Skeletal animations
 		- Cascaded shadow mapping
 	- In some cases we DO want input even when captured by UI. We need two systems within input package, one filtered and one not✅
-	- Support OpenGL 4.1 and 4.6, and default to 4.6.
+	- (?) Support OpenGL 4.1 and 4.6, and default to 4.6
 	- Proper model loading (i.e. load model by reading all its meshes, textures, and so on together)
 	- Renderer batching
 	- Scene graph
-	- Separate engine loop from rendering loop? or leave it to the user?
-	- Abstract keys enum away from sdl?
+	- (?) Separate engine loop from rendering loop
 	- Frustum culling
 	- Proper Asset loading system
 	- Material system editor with fields automatically extracted from the shader
@@ -209,6 +208,21 @@ func (s *SpotLight) OuterCutoffCos() float32 {
 	return gglm.Cos32(s.OuterCutoffRad)
 }
 
+type GlobalMatricesUboData struct {
+	CamPos      gglm.Vec3
+	ProjViewMat gglm.Mat4
+}
+
+type DirLightUboData struct {
+	Dir           gglm.Vec3
+	DiffuseColor  gglm.Vec3
+	SpecularColor gglm.Vec3
+	Shadowmap     int32
+}
+type LightsUboData struct {
+	DirLight DirLightUboData
+}
+
 const (
 	UNSCALED_WINDOW_WIDTH  = 1280
 	UNSCALED_WINDOW_HEIGHT = 720
@@ -220,6 +234,12 @@ const (
 )
 
 var (
+	globalMatricesUboData GlobalMatricesUboData
+	globalMatricesUbo     buffers.UniformBuffer
+
+	lightsUboData LightsUboData
+	lightsUbo     buffers.UniformBuffer
+
 	frameTimesMsIndex int       = 0
 	frameTimesMs      []float32 = make([]float32, 0, FRAME_TIME_MS_SAMPLES)
 
@@ -570,10 +590,7 @@ func (g *Game) Init() {
 	whiteMat.SetUnifInt32("material.emission", int32(materials.TextureSlot_Emission))
 	whiteMat.SetUnifVec3("ambientColor", &ambientColor)
 	whiteMat.SetUnifFloat32("material.shininess", whiteMat.Shininess)
-	whiteMat.SetUnifVec3("dirLight.dir", &dirLight.Dir)
-	whiteMat.SetUnifVec3("dirLight.diffuseColor", &dirLight.DiffuseColor)
-	whiteMat.SetUnifVec3("dirLight.specularColor", &dirLight.SpecularColor)
-	whiteMat.SetUnifInt32("dirLight.shadowMap", int32(materials.TextureSlot_ShadowMap1))
+	whiteMat.SetUnifInt32("dirLightShadowMap", int32(materials.TextureSlot_ShadowMap1))
 	whiteMat.SetUnifInt32("pointLightCubeShadowMaps", int32(materials.TextureSlot_Cubemap_Array))
 	whiteMat.SetUnifInt32("spotLightShadowMaps", int32(materials.TextureSlot_ShadowMap_Array1))
 
@@ -588,10 +605,7 @@ func (g *Game) Init() {
 	containerMat.SetUnifInt32("material.emission", int32(materials.TextureSlot_Emission))
 	containerMat.SetUnifVec3("ambientColor", &ambientColor)
 	containerMat.SetUnifFloat32("material.shininess", containerMat.Shininess)
-	containerMat.SetUnifVec3("dirLight.dir", &dirLight.Dir)
-	containerMat.SetUnifVec3("dirLight.diffuseColor", &dirLight.DiffuseColor)
-	containerMat.SetUnifVec3("dirLight.specularColor", &dirLight.SpecularColor)
-	containerMat.SetUnifInt32("dirLight.shadowMap", int32(materials.TextureSlot_ShadowMap1))
+	containerMat.SetUnifInt32("dirLightShadowMap", int32(materials.TextureSlot_ShadowMap1))
 	containerMat.SetUnifInt32("pointLightCubeShadowMaps", int32(materials.TextureSlot_Cubemap_Array))
 	containerMat.SetUnifInt32("spotLightShadowMaps", int32(materials.TextureSlot_ShadowMap_Array1))
 
@@ -606,10 +620,7 @@ func (g *Game) Init() {
 	groundMat.SetUnifInt32("material.emission", int32(materials.TextureSlot_Emission))
 	groundMat.SetUnifVec3("ambientColor", &ambientColor)
 	groundMat.SetUnifFloat32("material.shininess", groundMat.Shininess)
-	groundMat.SetUnifVec3("dirLight.dir", &dirLight.Dir)
-	groundMat.SetUnifVec3("dirLight.diffuseColor", &dirLight.DiffuseColor)
-	groundMat.SetUnifVec3("dirLight.specularColor", &dirLight.SpecularColor)
-	groundMat.SetUnifInt32("dirLight.shadowMap", int32(materials.TextureSlot_ShadowMap1))
+	groundMat.SetUnifInt32("dirLightShadowMap", int32(materials.TextureSlot_ShadowMap1))
 	groundMat.SetUnifInt32("pointLightCubeShadowMaps", int32(materials.TextureSlot_Cubemap_Array))
 	groundMat.SetUnifInt32("spotLightShadowMaps", int32(materials.TextureSlot_ShadowMap_Array1))
 
@@ -623,10 +634,7 @@ func (g *Game) Init() {
 	palleteMat.SetUnifInt32("material.emission", int32(materials.TextureSlot_Emission))
 	palleteMat.SetUnifVec3("ambientColor", &ambientColor)
 	palleteMat.SetUnifFloat32("material.shininess", palleteMat.Shininess)
-	palleteMat.SetUnifVec3("dirLight.dir", &dirLight.Dir)
-	palleteMat.SetUnifVec3("dirLight.diffuseColor", &dirLight.DiffuseColor)
-	palleteMat.SetUnifVec3("dirLight.specularColor", &dirLight.SpecularColor)
-	palleteMat.SetUnifInt32("dirLight.shadowMap", int32(materials.TextureSlot_ShadowMap1))
+	palleteMat.SetUnifInt32("dirLightShadowMap", int32(materials.TextureSlot_ShadowMap1))
 	palleteMat.SetUnifInt32("pointLightCubeShadowMaps", int32(materials.TextureSlot_Cubemap_Array))
 	palleteMat.SetUnifInt32("spotLightShadowMaps", int32(materials.TextureSlot_ShadowMap_Array1))
 
@@ -667,12 +675,46 @@ func (g *Game) Init() {
 	g.initFbos()
 	g.updateLights()
 
+	// Ubos
+	g.initUbos()
+	// testUbos()
+
 	// Initial camera update
 	cam.Update()
 	updateAllProjViewMats(cam.ProjMat, cam.ViewMat)
+}
 
-	// Ubos
-	testUbos()
+func (g *Game) initUbos() {
+
+	globalMatricesUbo = buffers.NewUniformBuffer(
+		[]buffers.UniformBufferFieldInput{
+			{Id: 0, Type: buffers.DataTypeVec3},
+			{Id: 1, Type: buffers.DataTypeMat4},
+		},
+	)
+
+	globalMatricesUbo.SetBindPoint(0)
+	groundMat.SetUniformBlockBindingPoint("GlobalMatrices", 0)
+	whiteMat.SetUniformBlockBindingPoint("GlobalMatrices", 0)
+	containerMat.SetUniformBlockBindingPoint("GlobalMatrices", 0)
+	palleteMat.SetUniformBlockBindingPoint("GlobalMatrices", 0)
+
+	lightsUbo = buffers.NewUniformBuffer(
+		[]buffers.UniformBufferFieldInput{
+			{Id: 0, Type: buffers.DataTypeStruct, Subfields: []buffers.UniformBufferFieldInput{
+				{Id: 1, Type: buffers.DataTypeVec3},
+				{Id: 2, Type: buffers.DataTypeVec3},
+				{Id: 3, Type: buffers.DataTypeVec3},
+				{Id: 4, Type: buffers.DataTypeInt32},
+			}},
+		},
+	)
+
+	lightsUbo.SetBindPoint(1)
+	groundMat.SetUniformBlockBindingPoint("Lights", 1)
+	whiteMat.SetUniformBlockBindingPoint("Lights", 1)
+	containerMat.SetUniformBlockBindingPoint("Lights", 1)
+	palleteMat.SetUniformBlockBindingPoint("Lights", 1)
 }
 
 func testUbos() {
@@ -976,10 +1018,16 @@ func (g *Game) initFbos() {
 func (g *Game) updateLights() {
 
 	// Directional light
-	whiteMat.ShadowMapTex1 = dirLightDepthMapFbo.Attachments[0].Id
-	containerMat.ShadowMapTex1 = dirLightDepthMapFbo.Attachments[0].Id
-	groundMat.ShadowMapTex1 = dirLightDepthMapFbo.Attachments[0].Id
-	palleteMat.ShadowMapTex1 = dirLightDepthMapFbo.Attachments[0].Id
+	lightsUboData.DirLight = DirLightUboData{
+		Dir:           dirLight.Dir,
+		DiffuseColor:  dirLight.DiffuseColor,
+		SpecularColor: dirLight.SpecularColor,
+		Shadowmap:     int32(dirLightDepthMapFbo.Attachments[0].Id),
+	}
+	whiteMat.ShadowMapTex1 = uint32(lightsUboData.DirLight.Shadowmap)
+	containerMat.ShadowMapTex1 = uint32(lightsUboData.DirLight.Shadowmap)
+	groundMat.ShadowMapTex1 = uint32(lightsUboData.DirLight.Shadowmap)
+	palleteMat.ShadowMapTex1 = uint32(lightsUboData.DirLight.Shadowmap)
 
 	// Point lights
 	for i := 0; i < len(pointLights); i++ {
@@ -1085,6 +1133,9 @@ func (g *Game) updateLights() {
 	containerMat.ShadowMapTexArray1 = spotLightDepthMapFbo.Attachments[0].Id
 	groundMat.ShadowMapTexArray1 = spotLightDepthMapFbo.Attachments[0].Id
 	palleteMat.ShadowMapTexArray1 = spotLightDepthMapFbo.Attachments[0].Id
+
+	lightsUbo.Bind()
+	lightsUbo.SetStruct(lightsUboData)
 }
 
 func (g *Game) Update() {
@@ -1095,6 +1146,9 @@ func (g *Game) Update() {
 
 	g.updateCameraLookAround()
 	g.updateCameraPos()
+
+	globalMatricesUboData.CamPos = cam.Pos
+	updateAllProjViewMats(cam.ProjMat, cam.ViewMat)
 
 	g.showDebugWindow()
 }
@@ -1145,6 +1199,11 @@ func (g *Game) showDebugWindow() {
 
 	imgui.Spacing()
 
+	//
+	// Lights
+	//
+	updateLights := false
+
 	// Ambient light
 	imgui.Text("Ambient Light")
 
@@ -1163,30 +1222,29 @@ func (g *Game) showDebugWindow() {
 	imgui.Checkbox("Render Directional Light Shadows", &renderDirLightShadows)
 
 	if imgui.DragFloat3("Direction", &dirLight.Dir.Data) {
-		whiteMat.SetUnifVec3("dirLight.dir", &dirLight.Dir)
-		containerMat.SetUnifVec3("dirLight.dir", &dirLight.Dir)
-		groundMat.SetUnifVec3("dirLight.dir", &dirLight.Dir)
-		palleteMat.SetUnifVec3("dirLight.dir", &dirLight.Dir)
+		updateLights = true
 	}
 
 	if imgui.ColorEdit3("Diffuse Color", &dirLight.DiffuseColor.Data) {
-		whiteMat.SetUnifVec3("dirLight.diffuseColor", &dirLight.DiffuseColor)
-		containerMat.SetUnifVec3("dirLight.diffuseColor", &dirLight.DiffuseColor)
-		groundMat.SetUnifVec3("dirLight.diffuseColor", &dirLight.DiffuseColor)
-		palleteMat.SetUnifVec3("dirLight.diffuseColor", &dirLight.DiffuseColor)
+		updateLights = true
 	}
 
 	if imgui.ColorEdit3("Specular Color", &dirLight.SpecularColor.Data) {
-		whiteMat.SetUnifVec3("dirLight.specularColor", &dirLight.SpecularColor)
-		containerMat.SetUnifVec3("dirLight.specularColor", &dirLight.SpecularColor)
-		groundMat.SetUnifVec3("dirLight.specularColor", &dirLight.SpecularColor)
-		palleteMat.SetUnifVec3("dirLight.specularColor", &dirLight.SpecularColor)
+		updateLights = true
 	}
 
-	imgui.DragFloat3("dPos", &dirLightPos.Data)
-	imgui.DragFloat("dSize", &dirLightSize)
-	imgui.DragFloat("dNear", &dirLightNear)
-	imgui.DragFloat("dFar", &dirLightFar)
+	if imgui.DragFloat3("dPos", &dirLightPos.Data) {
+		updateLights = true
+	}
+	if imgui.DragFloat("dSize", &dirLightSize) {
+		updateLights = true
+	}
+	if imgui.DragFloat("dNear", &dirLightNear) {
+		updateLights = true
+	}
+	if imgui.DragFloat("dFar", &dirLightFar) {
+		updateLights = true
+	}
 
 	imgui.Spacing()
 
@@ -1368,6 +1426,10 @@ func (g *Game) showDebugWindow() {
 		imgui.EndListBox()
 	}
 
+	if updateLights {
+		g.updateLights()
+	}
+
 	// Demo fbo
 	imgui.Text("Demo Framebuffer")
 	imgui.Checkbox("Show FBO##0", &renderToDemoFbo)
@@ -1415,8 +1477,6 @@ func (g *Game) updateCameraLookAround() {
 	}
 
 	cam.UpdateRotation(pitch, yaw)
-
-	updateAllProjViewMats(cam.ProjMat, cam.ViewMat)
 }
 
 func (g *Game) updateCameraPos() {
@@ -1450,7 +1510,6 @@ func (g *Game) updateCameraPos() {
 
 	if update {
 		cam.Update()
-		updateAllProjViewMats(cam.ProjMat, cam.ViewMat)
 	}
 }
 
@@ -1465,10 +1524,8 @@ var (
 
 func (g *Game) Render() {
 
-	whiteMat.SetUnifVec3("camPos", &cam.Pos)
-	containerMat.SetUnifVec3("camPos", &cam.Pos)
-	groundMat.SetUnifVec3("camPos", &cam.Pos)
-	palleteMat.SetUnifVec3("camPos", &cam.Pos)
+	globalMatricesUbo.Bind()
+	globalMatricesUbo.SetStruct(globalMatricesUboData)
 
 	rotatingCubeTrMat1.Rotate(rotatingCubeSpeedDeg1*gglm.Deg2Rad*timing.DT(), 0, 1, 0)
 	rotatingCubeTrMat2.Rotate(rotatingCubeSpeedDeg2*gglm.Deg2Rad*timing.DT(), 1, 1, 0)
@@ -1721,12 +1778,9 @@ func (g *Game) DeInit() {
 func updateAllProjViewMats(projMat, viewMat gglm.Mat4) {
 
 	projViewMat := *projMat.Clone().Mul(&viewMat)
+	globalMatricesUboData.ProjViewMat = projViewMat
 
 	unlitMat.SetUnifMat4("projViewMat", &projViewMat)
-	whiteMat.SetUnifMat4("projViewMat", &projViewMat)
-	containerMat.SetUnifMat4("projViewMat", &projViewMat)
-	groundMat.SetUnifMat4("projViewMat", &projViewMat)
-	palleteMat.SetUnifMat4("projViewMat", &projViewMat)
 	debugDepthMat.SetUnifMat4("projViewMat", &projViewMat)
 
 	// Update skybox projViewMat
